@@ -172,7 +172,7 @@ document.querySelectorAll(".grid-type").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".grid-type").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    gridType = btn.dataset.grid || "thirds";
+    gridType = btn.dataset.grid === "phi" ? "phi" : "thirds";
     renderOverlays();
   });
 });
@@ -424,6 +424,7 @@ function setupCanvas(w,h) {
   ctx.fillStyle = "#000";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
+  updateViewerAspectRatio(canvas.width, canvas.height);
   renderOverlays();
 }
 
@@ -538,6 +539,23 @@ function renderGifAtTime(seconds) {
 }
 
 
+function updateViewerAspectRatio(w, h) {
+  if (!w || !h) return;
+
+  // PCは従来UIを維持。スマホだけ動画の実アスペクト比で高さを決める。
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    dropZone.style.aspectRatio = `${w} / ${h}`;
+  } else {
+    dropZone.style.aspectRatio = "";
+  }
+}
+
+window.addEventListener("resize", () => {
+  if (canvas.width && canvas.height) {
+    updateViewerAspectRatio(canvas.width, canvas.height);
+  }
+});
+
 function renderOverlays() {
   if (!canvas.width || !canvas.height) return;
 
@@ -625,8 +643,6 @@ function drawGridToContext(g, kind, w, h) {
 
   if (kind === "phi") {
     drawPhiGrid(g, w, h);
-  } else if (kind === "spiral") {
-    drawFibonacciSpiral(g, w, h);
   } else {
     drawThirdsGrid(g, w, h);
   }
