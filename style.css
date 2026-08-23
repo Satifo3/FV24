@@ -276,3 +276,62 @@ footer{text-align:center;color:#687286;font-size:11px;padding:14px 0}
 .viewer:not(.has-analysis) #fxCanvas{
   visibility:hidden;
 }
+
+
+/* v1.6.3: grid color + transparency controls */
+.grid-appearance{
+  margin-top:12px;
+  padding:12px;
+  border:1px solid #2d3647;
+  border-radius:12px;
+  background:#0c1119;
+}
+.appearance-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.appearance-row + .appearance-row{
+  margin-top:11px;
+}
+.inline-label{
+  margin:0;
+  min-width:70px;
+}
+.color-picker{
+  width:46px;
+  height:32px;
+  padding:2px;
+  border:1px solid #3a4458;
+  border-radius:8px;
+  background:#171d28;
+  cursor:pointer;
+}
+.color-presets{
+  display:flex;
+  gap:6px;
+  margin-left:auto;
+}
+.color-preset{
+  width:26px;
+  height:26px;
+  padding:0;
+  border:2px solid #3a4458;
+  border-radius:50%;
+  background:var(--preset);
+  box-shadow:0 0 0 1px #0005 inset;
+}
+.color-preset:hover{
+  transform:scale(1.06);
+}
+.opacity-row input[type="range"]{
+  flex:1;
+  min-width:0;
+  accent-color:var(--accent);
+}
+.opacity-row strong{
+  width:42px;
+  color:#e8ecf5;
+  font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace;
+  text-align:right;
+}

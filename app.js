@@ -44,6 +44,8 @@ let gridEnabled = false;
 let valueEnabled = false;
 let gridType = "thirds";
 let exportOverlays = true;
+let gridColor = "#ff4b4b";
+let gridOpacity = 0.68;
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -97,6 +99,26 @@ $("gridCheck").addEventListener("change", e => {
   gridEnabled = e.target.checked;
   $("gridOptions").classList.toggle("disabled", !gridEnabled);
   renderOverlays();
+});
+
+$("gridColor").addEventListener("input", e => {
+  gridColor = normalizeHexColor(e.target.value);
+  renderOverlays();
+});
+
+$("gridOpacity").addEventListener("input", e => {
+  gridOpacity = Math.max(0.2, Math.min(1, Number(e.target.value) / 100));
+  $("gridOpacityValue").textContent = `${Math.round(gridOpacity * 100)}%`;
+  renderOverlays();
+});
+
+document.querySelectorAll(".color-preset").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const color = normalizeHexColor(btn.dataset.color || "#ff4b4b");
+    gridColor = color;
+    $("gridColor").value = color;
+    renderOverlays();
+  });
 });
 
 $("valueCheck").addEventListener("change", e => {
@@ -542,9 +564,23 @@ function composeAnalyzedFrame(targetCtx, options = {}) {
   targetCtx.restore();
 }
 
+function normalizeHexColor(value) {
+  const v = String(value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : "#ff4b4b";
+}
+
+function hexToRgba(hex, alpha) {
+  const safe = normalizeHexColor(hex);
+  const r = parseInt(safe.slice(1, 3), 16);
+  const g = parseInt(safe.slice(3, 5), 16);
+  const b = parseInt(safe.slice(5, 7), 16);
+  const a = Math.max(0, Math.min(1, Number(alpha)));
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
 function drawGridToContext(g, kind, w, h) {
   g.save();
-  g.strokeStyle = "rgba(255, 75, 75, 0.95)";
+  g.strokeStyle = hexToRgba(gridColor, gridOpacity);
   g.lineWidth = Math.max(2, Math.min(w, h) / 650);
   g.lineCap = "round";
   g.lineJoin = "round";

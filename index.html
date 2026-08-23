@@ -15,7 +15,7 @@
           <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
           <h1>Frame Viewer <span>24</span></h1>
         </div>
-        <span class="version-badge">v1.6.2</span>
+        <span class="version-badge">v1.6.3</span>
       </div>
 
       <div class="top-actions">
@@ -97,6 +97,25 @@
                   <span class="mini-grid icon-spiral">◔</span>
                   <span>フィボナッチ<br>スパイラル</span>
                 </button>
+              </div>
+
+              <div class="grid-appearance">
+                <div class="appearance-row">
+                  <span class="control-label inline-label">グリッド色</span>
+                  <input id="gridColor" class="color-picker" type="color" value="#ff4b4b" aria-label="グリッド色" />
+                  <div class="color-presets" aria-label="色覚に配慮したプリセット">
+                    <button type="button" class="color-preset" data-color="#ff4b4b" title="赤" style="--preset:#ff4b4b"></button>
+                    <button type="button" class="color-preset" data-color="#00b7ff" title="シアン" style="--preset:#00b7ff"></button>
+                    <button type="button" class="color-preset" data-color="#ffd84d" title="黄" style="--preset:#ffd84d"></button>
+                    <button type="button" class="color-preset" data-color="#ffffff" title="白" style="--preset:#ffffff"></button>
+                  </div>
+                </div>
+
+                <div class="appearance-row opacity-row">
+                  <span class="control-label inline-label">不透明度</span>
+                  <input id="gridOpacity" type="range" min="20" max="100" step="5" value="68" />
+                  <strong id="gridOpacityValue">68%</strong>
+                </div>
               </div>
             </div>
           </div>
