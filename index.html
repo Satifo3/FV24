@@ -15,7 +15,7 @@
           <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
           <h1>Frame Viewer <span>24</span></h1>
         </div>
-        <span class="version-badge">v1.6</span>
+        <span class="version-badge">v1.6.1</span>
       </div>
 
       <div class="top-actions">
@@ -145,8 +145,13 @@
             <div id="hdrCapability" class="hdr-capability">HDR/P3対応を確認中…</div>
           </div>
 
+          <label class="check export-overlay-check">
+            <input id="exportOverlayCheck" type="checkbox" checked />
+            <span>グリッド / バリューを画像に含める</span>
+          </label>
+
           <button id="saveBtn" class="secondary">保存先を選んでPNG保存</button>
-          <p id="saveHelp">元動画/GIFの解像度のまま保存します。HDR/P3は対応ブラウザでDisplay-P3 PNGとして書き出します。</p>
+          <p id="saveHelp">元動画/GIFの解像度のまま保存します。チェックON時は表示中のグリッド / バリューも合成します。</p>
           <p id="saveStatus" class="save-status" aria-live="polite"></p>
         </section>
       </aside>

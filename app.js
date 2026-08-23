@@ -43,6 +43,7 @@ let p3ExportSupported = false;
 let gridEnabled = false;
 let valueEnabled = false;
 let gridType = "thirds";
+let exportOverlays = true;
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -101,6 +102,10 @@ $("gridCheck").addEventListener("change", e => {
 $("valueCheck").addEventListener("change", e => {
   valueEnabled = e.target.checked;
   renderOverlays();
+});
+
+$("exportOverlayCheck").addEventListener("change", e => {
+  exportOverlays = e.target.checked;
 });
 
 document.querySelectorAll(".grid-type").forEach(btn => {
@@ -479,19 +484,45 @@ function renderOverlays() {
   fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
   gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
 
-  // バリュー確認: 元フレームは触らず、上にモノクロ版を重ねる。
+  // バリュー確認:
+  // CSS filterではなく、画素データを直接グレースケール化する。
+  // これによりブラウザ差で「モノクロにならない」問題を避ける。
   if (valueEnabled && mode) {
-    fxCtx.save();
-    fxCtx.filter = "grayscale(1)";
-    fxCtx.drawImage(canvas, 0, 0);
-    fxCtx.restore();
+    try {
+      fxCtx.drawImage(canvas, 0, 0);
+
+      const imageData = fxCtx.getImageData(0, 0, fxCanvas.width, fxCanvas.height);
+      const d = imageData.data;
+
+      for (let i = 0; i < d.length; i += 4) {
+        // Rec.709に近い輝度係数
+        const y = Math.round(
+          d[i] * 0.2126 +
+          d[i + 1] * 0.7152 +
+          d[i + 2] * 0.0722
+        );
+        d[i] = y;
+        d[i + 1] = y;
+        d[i + 2] = y;
+      }
+
+      fxCtx.putImageData(imageData, 0, 0);
+    } catch (err) {
+      console.warn("Value/grayscale render failed:", err);
+
+      // 万一getImageDataが使えない環境ではfilterへフォールバック
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      fxCtx.save();
+      fxCtx.filter = "grayscale(100%)";
+      fxCtx.drawImage(canvas, 0, 0);
+      fxCtx.restore();
+    }
   }
 
   if (gridEnabled && mode) {
     drawSelectedGrid();
   }
 }
-
 function drawSelectedGrid() {
   const w = gridCanvas.width;
   const h = gridCanvas.height;
@@ -533,91 +564,86 @@ function drawPhiGrid(w, h) {
 }
 
 function drawFibonacciSpiral(w, h) {
-  // 画面内に収まる黄金長方形を中央配置。
   const phi = (1 + Math.sqrt(5)) / 2;
-  let rw = w;
-  let rh = rw / phi;
 
-  if (rh > h) {
-    rh = h;
-    rw = rh * phi;
+  // 映像内に収まる黄金長方形を中央に配置
+  let rectW = w;
+  let rectH = rectW / phi;
+
+  if (rectH > h) {
+    rectH = h;
+    rectW = rectH * phi;
   }
 
-  const ox = (w - rw) / 2;
-  const oy = (h - rh) / 2;
+  const x0 = (w - rectW) / 2;
+  const y0 = (h - rectH) / 2;
 
-  // 黄金長方形の主要分割線
-  gridCtx.globalAlpha = 0.58;
-  gridCtx.strokeRect(ox, oy, rw, rh);
+  // ガイド用の黄金長方形 + 黄金分割線
+  gridCtx.save();
+  gridCtx.globalAlpha = 0.48;
+  gridCtx.strokeRect(x0, y0, rectW, rectH);
 
-  let x = ox, y = oy, ww = rw, hh = rh;
-  const rects = [];
+  // 黄金比で分割した補助線
+  let x = x0;
+  let y = y0;
+  let rw = rectW;
+  let rh = rectH;
+  let dir = 0;
 
-  for (let i = 0; i < 8; i++) {
-    if (ww >= hh) {
-      const s = hh;
-      rects.push({x, y, s, dir:i%4});
-      if (i % 4 === 0 || i % 4 === 3) {
-        line(x + s, y, x + s, y + hh);
-        x += s;
-      } else {
-        line(x + ww - s, y, x + ww - s, y + hh);
-      }
-      ww -= s;
+  for (let i = 0; i < 7; i++) {
+    if (dir === 0) {
+      const s = rh;
+      line(x + s, y, x + s, y + rh);
+      x += s;
+      rw -= s;
+    } else if (dir === 1) {
+      const s = rw;
+      line(x, y + s, x + rw, y + s);
+      y += s;
+      rh -= s;
+    } else if (dir === 2) {
+      const s = rh;
+      line(x + rw - s, y, x + rw - s, y + rh);
+      rw -= s;
     } else {
-      const s = ww;
-      rects.push({x, y, s, dir:i%4});
-      if (i % 4 === 1 || i % 4 === 0) {
-        line(x, y + s, x + ww, y + s);
-        y += s;
-      } else {
-        line(x, y + hh - s, x + ww, y + hh - s);
-      }
-      hh -= s;
+      const s = rw;
+      line(x, y + rh - s, x + rw, y + rh - s);
+      rh -= s;
     }
-    if (ww <= 1 || hh <= 1) break;
+
+    dir = (dir + 1) % 4;
+    if (rw <= 1 || rh <= 1) break;
   }
 
-  // 連続した1/4円弧でスパイラルを描画
-  gridCtx.globalAlpha = 1;
-  let sx = ox, sy = oy, sw = rw, sh = rh;
-  let orientation = 0;
+  gridCtx.restore();
+
+  // きれいな黄金スパイラル:
+  // r = a * e^(bθ), 四分円ごとに半径が1/phiになるよう設定
+  const thetaMax = Math.PI * 4.5;
+  const b = -Math.log(phi) / (Math.PI / 2);
+
+  // 右上寄りの黄金点を中心にして、見た目が自然に収まるよう調整
+  const cx = x0 + rectW * 0.61803398875;
+  const cy = y0 + rectH * 0.38196601125;
+  const maxR = Math.min(rectW, rectH) * 0.95;
 
   gridCtx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    let s, cx, cy, start, end;
 
-    if (sw >= sh) {
-      s = sh;
-      if (orientation % 4 === 0) {
-        cx = sx + s; cy = sy + s; start = Math.PI; end = 1.5*Math.PI;
-        sx += s;
-      } else {
-        cx = sx + sw - s; cy = sy; start = 0.5*Math.PI; end = Math.PI;
-      }
-      sw -= s;
-    } else {
-      s = sw;
-      if (orientation % 4 === 1) {
-        cx = sx; cy = sy + s; start = -0.5*Math.PI; end = 0;
-        sy += s;
-      } else {
-        cx = sx + s; cy = sy + sh - s; start = Math.PI; end = 1.5*Math.PI;
-      }
-      sh -= s;
-    }
+  const steps = 420;
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * thetaMax;
+    const r = maxR * Math.exp(b * t);
+    const a = t + Math.PI * 0.08;
 
-    if (i === 0) {
-      gridCtx.moveTo(cx + Math.cos(start)*s, cy + Math.sin(start)*s);
-    }
-    gridCtx.arc(cx, cy, s, start, end, false);
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r;
 
-    orientation++;
-    if (sw <= 1 || sh <= 1) break;
+    if (i === 0) gridCtx.moveTo(px, py);
+    else gridCtx.lineTo(px, py);
   }
+
   gridCtx.stroke();
 }
-
 function line(x1, y1, x2, y2) {
   gridCtx.beginPath();
   gridCtx.moveTo(x1, y1);
@@ -691,44 +717,58 @@ async function saveCurrentFrame() {
   setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} で${formatLabel}を準備しています…`);
 
   try {
-    let exportCanvas = canvas;
+    // 書き出し専用キャンバスを作る。
+    // 元動画は一切変更せず、必要な場合だけバリュー/グリッドを合成。
+    const compositeCanvas = document.createElement("canvas");
+    compositeCanvas.width = canvas.width;
+    compositeCanvas.height = canvas.height;
 
-    if (isJpeg) {
-      const jpegCanvas = document.createElement("canvas");
-      jpegCanvas.width = canvas.width;
-      jpegCanvas.height = canvas.height;
-      const jpegCtx = jpegCanvas.getContext("2d", { alpha: false });
-      jpegCtx.fillStyle = "#000";
-      jpegCtx.fillRect(0, 0, jpegCanvas.width, jpegCanvas.height);
-      jpegCtx.drawImage(canvas, 0, 0);
-      exportCanvas = jpegCanvas;
-    }
+    let compositeCtx;
 
     if (isP3) {
       if (!p3ExportSupported) {
         throw new Error("このブラウザはDisplay-P3 Canvas書き出しに対応していません。");
       }
 
-      const p3Canvas = document.createElement("canvas");
-      p3Canvas.width = canvas.width;
-      p3Canvas.height = canvas.height;
-
-      const p3Ctx = p3Canvas.getContext("2d", {
+      compositeCtx = compositeCanvas.getContext("2d", {
         alpha: false,
         colorSpace: "display-p3"
       });
 
-      if (!p3Ctx) {
+      if (!compositeCtx) {
         throw new Error("Display-P3 Canvasを作成できませんでした。");
       }
+    } else {
+      compositeCtx = compositeCanvas.getContext("2d", { alpha: false });
+    }
 
-      // 元フレームをDisplay-P3キャンバスへコピー。
-      // HDR HEVCをSafariがHDRとしてデコードできる環境では、
-      // sRGB canvasより広い色域を維持しやすい。
-      p3Ctx.fillStyle = "#000";
-      p3Ctx.fillRect(0, 0, p3Canvas.width, p3Canvas.height);
-      p3Ctx.drawImage(canvas, 0, 0);
-      exportCanvas = p3Canvas;
+    compositeCtx.fillStyle = "#000";
+    compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+    compositeCtx.drawImage(canvas, 0, 0);
+
+    if (exportOverlays) {
+      // バリューは元映像の上に完全なモノクロ画像として合成
+      if (valueEnabled) {
+        compositeCtx.drawImage(fxCanvas, 0, 0);
+      }
+
+      // グリッドは最後に最前面へ合成
+      if (gridEnabled) {
+        compositeCtx.drawImage(gridCanvas, 0, 0);
+      }
+    }
+
+    let exportCanvas = compositeCanvas;
+
+    if (isJpeg) {
+      const jpegCanvas = document.createElement("canvas");
+      jpegCanvas.width = compositeCanvas.width;
+      jpegCanvas.height = compositeCanvas.height;
+      const jpegCtx = jpegCanvas.getContext("2d", { alpha: false });
+      jpegCtx.fillStyle = "#000";
+      jpegCtx.fillRect(0, 0, jpegCanvas.width, jpegCanvas.height);
+      jpegCtx.drawImage(compositeCanvas, 0, 0);
+      exportCanvas = jpegCanvas;
     }
 
     const blob = await canvasToBlob(
@@ -838,13 +878,13 @@ function updateSaveFormatUI() {
 
   if (isJpeg) {
     $("saveHelp").textContent =
-      "元動画/GIFの解像度のままJPEG保存します。画質は95%の高画質設定です。";
+      "元解像度のままJPEG保存します。チェックON時は表示中のグリッド / バリューも合成します。";
   } else if (isP3) {
     $("saveHelp").textContent =
-      "対応端末ではDisplay-P3の広色域PNGとして保存します。解像度は元動画のままです。";
+      "対応端末ではDisplay-P3 PNGとして保存します。チェックON時は表示中のグリッド / バリューも合成します。";
   } else {
     $("saveHelp").textContent =
-      "元動画/GIFの解像度のままPNG保存します。PNGは無劣化です。";
+      "元解像度のままPNG保存します。チェックON時は表示中のグリッド / バリューも合成します。";
   }
 }
 
