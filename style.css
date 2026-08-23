@@ -60,3 +60,31 @@ footer{text-align:center;color:#687286;font-size:11px;padding:20px 0}
   .transport button{min-width:42px}
   .transport .big{min-width:68px;font-size:12px}
 }
+
+
+/* v1.1: 読み込み後の動画を最前面にし、初期案内が残らないようにする */
+.empty[hidden],
+.hud[hidden]{
+  display:none !important;
+}
+#canvas{
+  position:relative;
+  z-index:2;
+  background:#000;
+}
+.empty{
+  z-index:1;
+}
+.hud{
+  z-index:3;
+  pointer-events:none;
+}
+.viewer.loaded .empty{
+  display:none !important;
+}
+.save-status{
+  min-height:1.4em;
+  margin-top:8px !important;
+}
+.save-status.ok{color:#b9f3c5}
+.save-status.error{color:#ffb8b8}

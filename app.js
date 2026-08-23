@@ -16,6 +16,7 @@ const currentFrameEl = $("currentFrame");
 const totalFramesEl = $("totalFrames");
 const sourceInfo = $("sourceInfo");
 const playBtn = $("playBtn");
+const saveStatus = $("saveStatus");
 
 let mode = null; // video | gif
 let currentFrame = 0;
@@ -92,6 +93,9 @@ async function loadFile(file) {
 }
 
 function clearSource() {
+  dropZone.classList.remove("loaded");
+  emptyState.hidden = false;
+  hud.hidden = true;
   mode = null;
   gifFrames = [];
   gifTotalDurationMs = 0;
@@ -170,6 +174,7 @@ function setupCanvas(w,h) {
 }
 
 function showLoadedUI() {
+  dropZone.classList.add("loaded");
   emptyState.hidden = true;
   hud.hidden = !$("overlayCheck").checked;
   timeline.max = Math.max(0,totalFrames - 1);
@@ -301,12 +306,99 @@ function pausePlayback() {
   playTimer = null;
 }
 
-function saveCurrentFrame() {
+async function saveCurrentFrame() {
   if (!mode) return;
-  const a = document.createElement("a");
-  a.download = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps.png`;
-  a.href = canvas.toDataURL("image/png");
-  a.click();
+
+  const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps.png`;
+  setSaveStatus("画像を準備しています…");
+
+  try {
+    const blob = await canvasToBlob(canvas, "image/png");
+    if (!blob) throw new Error("PNG画像を作成できませんでした。");
+
+    // PC版Chrome / Edgeなど:
+    // ユーザーが保存フォルダとファイル名を直接選べる。
+    if ("showSaveFilePicker" in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: "PNG画像",
+            accept: { "image/png": [".png"] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        setSaveStatus("指定した保存先にPNGを保存しました。", "ok");
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          setSaveStatus("保存をキャンセルしました。");
+          return;
+        }
+        // File System Access APIが実装されていても利用不能な環境では
+        // 下の共有シート方式へフォールバックする。
+        console.warn("File picker failed:", err);
+      }
+    }
+
+    const file = new File([blob], fileName, { type: "image/png" });
+
+    // iPhone / iPad / Safari等:
+    // Webサイト側から任意フォルダへ直接書き込むことはできないため、
+    // OSの共有シートを開く。「ファイルに保存」を選ぶと保存先を指定できる。
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: fileName
+        });
+        setSaveStatus("共有シートへPNGを渡しました。", "ok");
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          setSaveStatus("保存をキャンセルしました。");
+          return;
+        }
+        console.warn("Share failed:", err);
+      }
+    }
+
+    // 最終フォールバック: 通常のブラウザダウンロード。
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    setSaveStatus("ブラウザのダウンロード機能で保存しました。", "ok");
+  } catch (err) {
+    console.error(err);
+    setSaveStatus(`保存できませんでした: ${err.message || err}`, "error");
+    alert("画像を保存できませんでした。別のブラウザでも試してください。");
+  }
+}
+
+function canvasToBlob(targetCanvas, type = "image/png", quality) {
+  return new Promise((resolve, reject) => {
+    try {
+      targetCanvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("画像データの生成に失敗しました。"));
+      }, type, quality);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function setSaveStatus(message, kind = "") {
+  if (!saveStatus) return;
+  saveStatus.textContent = message;
+  saveStatus.className = `save-status ${kind}`.trim();
 }
 
 function formatDuration(s) {
