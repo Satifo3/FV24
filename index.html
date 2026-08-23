@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Frame Viewer 24</title>
+  <meta name="theme-color" content="#111318" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
+        <h1>Frame Viewer <span>24</span></h1>
+      </div>
+      <button id="openBtn" class="primary">動画 / GIFを開く</button>
+      <input id="fileInput" type="file" accept="video/mp4,video/webm,video/quicktime,image/gif,.mp4,.webm,.mov,.gif" hidden />
+    </header>
+
+    <section class="viewer-card">
+      <div id="dropZone" class="viewer">
+        <video id="video" playsinline preload="metadata" hidden></video>
+        <canvas id="canvas"></canvas>
+
+        <div id="emptyState" class="empty">
+          <div class="empty-icon">24</div>
+          <h2>動画またはGIFを読み込んでください</h2>
+          <p>MP4 / WebM / MOV※ / GIF</p>
+          <small>※ MOVはブラウザが再生できるコーデックの場合のみ対応</small>
+        </div>
+
+        <div id="hud" class="hud" hidden>
+          <span id="frameHud">F 000001</span>
+          <span id="timeHud">00:00 + 00</span>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button id="firstBtn" title="先頭">|◀</button>
+        <button id="prevBtn" class="big" title="1コマ戻る">◀ 1F</button>
+        <button id="playBtn" class="play" title="24fpsで再生">▶</button>
+        <button id="nextBtn" class="big" title="1コマ進む">1F ▶</button>
+        <button id="lastBtn" title="末尾">▶|</button>
+      </div>
+
+      <div class="timeline-wrap">
+        <input id="timeline" type="range" min="0" max="0" value="0" step="1" />
+        <div class="timeline-meta">
+          <strong id="currentFrame">000001 F</strong>
+          <span id="totalFrames">/ 000000 F</span>
+          <span class="spacer"></span>
+          <span id="sourceInfo">24 fps表示</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls-grid">
+      <article class="panel">
+        <h3>コマ送り</h3>
+        <div class="segmented">
+          <button data-step="1" class="step active">1F</button>
+          <button data-step="2" class="step">2F</button>
+          <button data-step="3" class="step">3F</button>
+          <button data-step="6" class="step">6F</button>
+        </div>
+        <p>← / → キーでもコマ送りできます。</p>
+      </article>
+
+      <article class="panel">
+        <h3>表示</h3>
+        <label class="check"><input id="fitCheck" type="checkbox" checked /> 画面内にフィット</label>
+        <label class="check"><input id="overlayCheck" type="checkbox" checked /> フレーム情報を表示</label>
+      </article>
+
+      <article class="panel">
+        <h3>書き出し</h3>
+        <button id="saveBtn" class="secondary">現在のコマをPNG保存</button>
+        <p>表示中の1コマをそのまま画像化します。</p>
+      </article>
+    </section>
+
+    <footer>
+      <p>Frame Viewer 24 — 1秒 = 24コマ基準</p>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
