@@ -25,6 +25,7 @@ let stepFrames = 1;
 let isPlaying = false;
 let playTimer = null;
 let objectUrl = null;
+let tempObjectUrls = [];
 
 let gifFrames = [];
 let gifCanvas = null;
@@ -34,6 +35,7 @@ let gifWidth = 0;
 let gifHeight = 0;
 let exportFormat = "png";
 const JPEG_QUALITY = 0.95;
+let p3ExportSupported = false;
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -72,7 +74,9 @@ document.querySelectorAll(".format-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".format-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    exportFormat = btn.dataset.format === "jpeg" ? "jpeg" : "png";
+
+    const requested = btn.dataset.format;
+    exportFormat = ["png", "jpeg", "p3png"].includes(requested) ? requested : "png";
     updateSaveFormatUI();
   });
 });
@@ -116,34 +120,157 @@ function clearSource() {
   gifHeight = 0;
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = null;
+
+  tempObjectUrls.forEach(url => {
+    try { URL.revokeObjectURL(url); } catch (_) {}
+  });
+  tempObjectUrls = [];
+
+  video.removeEventListener("seeked", drawVideoFrame);
   video.removeAttribute("src");
   video.load();
 }
 
 async function loadVideo(file) {
   mode = "video";
-  objectUrl = URL.createObjectURL(file);
-  video.src = objectUrl;
 
-  await new Promise((resolve, reject) => {
-    video.onloadedmetadata = resolve;
-    video.onerror = () => reject(new Error("この動画形式をブラウザで再生できません。"));
-  }).catch(err => {
-    alert(err.message + "\nMP4(H.264)またはWebMで試してください。");
+  const lower = file.name.toLowerCase();
+  const ext = lower.includes(".") ? lower.split(".").pop() : "";
+
+  // iPhoneで撮影したHEVC(H.265)は、一般にMOVまたはMP4コンテナ内の
+  // hvc1 / hev1として保存される。このアプリではブラウザ/OSの
+  // ネイティブデコーダーを利用して元解像度のまま読み込む。
+  const hevcCapability = getHevcCapability();
+
+  const candidates = [];
+  const seenTypes = new Set();
+
+  function addCandidate(blob, label) {
+    const type = blob.type || "";
+    const key = `${type}|${blob.size}|${label}`;
+    if (seenTypes.has(key)) return;
+    seenTypes.add(key);
+    candidates.push({ blob, label });
+  }
+
+  // まずファイル本来のMIMEタイプを最優先。
+  addCandidate(file, file.type || "original");
+
+  // iOS/ファイルアプリ経由ではMIMEが空、または環境によって判定が揺れる
+  // 場合があるため、コンテナ拡張子に応じたMIMEで再試行する。
+  if (ext === "mov") {
+    addCandidate(file.slice(0, file.size, "video/quicktime"), "video/quicktime");
+    addCandidate(file.slice(0, file.size, "video/mp4"), "video/mp4 fallback");
+  } else if (ext === "mp4" || ext === "m4v") {
+    addCandidate(file.slice(0, file.size, "video/mp4"), "video/mp4");
+    addCandidate(file.slice(0, file.size, "video/x-m4v"), "video/x-m4v");
+    addCandidate(file.slice(0, file.size, "video/quicktime"), "video/quicktime fallback");
+  } else {
+    // 不明拡張子でも動画として渡された場合の安全な候補。
+    if (!file.type) {
+      addCandidate(file.slice(0, file.size, "video/mp4"), "video/mp4 fallback");
+      addCandidate(file.slice(0, file.size, "video/quicktime"), "video/quicktime fallback");
+    }
+  }
+
+  let loaded = false;
+  let lastError = null;
+  let usedLabel = "";
+
+  for (const candidate of candidates) {
+    try {
+      const url = URL.createObjectURL(candidate.blob);
+      tempObjectUrls.push(url);
+
+      await loadVideoMetadataFromUrl(url);
+      objectUrl = url;
+      usedLabel = candidate.label;
+      loaded = true;
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (!loaded) {
     mode = null;
-  });
 
-  if (!mode) return;
+    const hevcNote = hevcCapability
+      ? "この端末はHEVC再生能力をブラウザが報告していますが、このファイルは読み込めませんでした。"
+      : "この端末/ブラウザではHEVC(H.265)のネイティブ再生に対応していない可能性があります。";
+
+    alert(
+      "動画を読み込めませんでした。\n\n" +
+      hevcNote +
+      "\n\niPhone撮影動画は、MOVまたはMP4のHEVC(H.265)をそのまま選んでください。" +
+      "\nPCではOSやブラウザにHEVCデコーダーが必要な場合があります。"
+    );
+
+    console.error("Video load failed:", lastError);
+    return;
+  }
 
   totalFrames = Math.max(1, Math.ceil(video.duration * FPS));
   setupCanvas(video.videoWidth, video.videoHeight);
-  sourceInfo.textContent = `${file.name} / ${video.videoWidth}×${video.videoHeight} / ${formatDuration(video.duration)} / 24fps換算`;
+
+  const hevcTag =
+    (ext === "mov" || ext === "mp4" || ext === "m4v")
+      ? ` / HEVC対応${hevcCapability ? "可" : "は端末依存"}`
+      : "";
+
+  sourceInfo.textContent =
+    `${file.name} / ${video.videoWidth}×${video.videoHeight} / ` +
+    `${formatDuration(video.duration)} / 24fps換算${hevcTag}`;
+
   showLoadedUI();
 
+  video.removeEventListener("seeked", drawVideoFrame);
   video.addEventListener("seeked", drawVideoFrame);
+
   await seekVideoFrame(0);
 }
 
+function loadVideoMetadataFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const onLoaded = () => {
+      cleanup();
+      resolve();
+    };
+
+    const onError = () => {
+      cleanup();
+      reject(video.error || new Error("動画デコーダーがこのファイルを開けませんでした。"));
+    };
+
+    const cleanup = () => {
+      video.removeEventListener("loadedmetadata", onLoaded);
+      video.removeEventListener("error", onError);
+    };
+
+    video.addEventListener("loadedmetadata", onLoaded, { once: true });
+    video.addEventListener("error", onError, { once: true });
+
+    video.src = url;
+    video.load();
+  });
+}
+
+function getHevcCapability() {
+  const tests = [
+    'video/mp4; codecs="hvc1"',
+    'video/mp4; codecs="hev1"',
+    'video/quicktime; codecs="hvc1"',
+    'video/quicktime; codecs="hev1"'
+  ];
+
+  return tests.some(type => {
+    try {
+      return video.canPlayType(type) !== "";
+    } catch (_) {
+      return false;
+    }
+  });
+}
 async function loadGif(file) {
   mode = "gif";
   if (!window.gifuctjs) {
@@ -361,16 +488,16 @@ async function saveCurrentFrame() {
   if (!mode) return;
 
   const isJpeg = exportFormat === "jpeg";
+  const isP3 = exportFormat === "p3png";
+
   const extension = isJpeg ? "jpg" : "png";
   const mimeType = isJpeg ? "image/jpeg" : "image/png";
-  const formatLabel = isJpeg ? "JPEG" : "PNG";
-  const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps.${extension}`;
+  const formatLabel = isJpeg ? "JPEG" : (isP3 ? "HDR/P3 PNG" : "PNG");
+  const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps${isP3 ? "_P3" : ""}.${extension}`;
 
   setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} で${formatLabel}を準備しています…`);
 
   try {
-    // JPEGは透過を持てないため黒背景へ合成してから書き出す。
-    // 動画フレームは通常不透明だが、GIFの透過にも対応する。
     let exportCanvas = canvas;
 
     if (isJpeg) {
@@ -384,6 +511,33 @@ async function saveCurrentFrame() {
       exportCanvas = jpegCanvas;
     }
 
+    if (isP3) {
+      if (!p3ExportSupported) {
+        throw new Error("このブラウザはDisplay-P3 Canvas書き出しに対応していません。");
+      }
+
+      const p3Canvas = document.createElement("canvas");
+      p3Canvas.width = canvas.width;
+      p3Canvas.height = canvas.height;
+
+      const p3Ctx = p3Canvas.getContext("2d", {
+        alpha: false,
+        colorSpace: "display-p3"
+      });
+
+      if (!p3Ctx) {
+        throw new Error("Display-P3 Canvasを作成できませんでした。");
+      }
+
+      // 元フレームをDisplay-P3キャンバスへコピー。
+      // HDR HEVCをSafariがHDRとしてデコードできる環境では、
+      // sRGB canvasより広い色域を維持しやすい。
+      p3Ctx.fillStyle = "#000";
+      p3Ctx.fillRect(0, 0, p3Canvas.width, p3Canvas.height);
+      p3Ctx.drawImage(canvas, 0, 0);
+      exportCanvas = p3Canvas;
+    }
+
     const blob = await canvasToBlob(
       exportCanvas,
       mimeType,
@@ -392,7 +546,6 @@ async function saveCurrentFrame() {
 
     if (!blob) throw new Error(`${formatLabel}画像を作成できませんでした。`);
 
-    // PC版Chrome / Edgeなど
     if ("showSaveFilePicker" in window) {
       try {
         const pickerTypes = isJpeg
@@ -401,7 +554,7 @@ async function saveCurrentFrame() {
               accept: { "image/jpeg": [".jpg", ".jpeg"] }
             }]
           : [{
-              description: "PNG画像",
+              description: isP3 ? "Display-P3 PNG画像" : "PNG画像",
               accept: { "image/png": [".png"] }
             }];
 
@@ -430,7 +583,6 @@ async function saveCurrentFrame() {
 
     const file = new File([blob], fileName, { type: mimeType });
 
-    // iPhone / iPad / Safari等
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
         await navigator.share({
@@ -452,7 +604,6 @@ async function saveCurrentFrame() {
       }
     }
 
-    // 最終フォールバック
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -469,7 +620,7 @@ async function saveCurrentFrame() {
   } catch (err) {
     console.error(err);
     setSaveStatus(`保存できませんでした: ${err.message || err}`, "error");
-    alert("画像を保存できませんでした。別のブラウザでも試してください。");
+    alert(err.message || "画像を保存できませんでした。");
   }
 }
 function canvasToBlob(targetCanvas, type = "image/png", quality) {
@@ -487,10 +638,21 @@ function canvasToBlob(targetCanvas, type = "image/png", quality) {
 
 function updateSaveFormatUI() {
   const isJpeg = exportFormat === "jpeg";
-  $("saveBtn").textContent = `保存先を選んで${isJpeg ? "JPEG" : "PNG"}保存`;
-  $("saveHelp").textContent = isJpeg
-    ? `元動画/GIFの解像度のままJPEG保存します。画質は95%の高画質設定です。`
-    : `元動画/GIFの解像度のままPNG保存します。PNGは無劣化です。`;
+  const isP3 = exportFormat === "p3png";
+
+  const label = isJpeg ? "JPEG" : (isP3 ? "HDR/P3" : "PNG");
+  $("saveBtn").textContent = `保存先を選んで${label}保存`;
+
+  if (isJpeg) {
+    $("saveHelp").textContent =
+      "元動画/GIFの解像度のままJPEG保存します。画質は95%の高画質設定です。";
+  } else if (isP3) {
+    $("saveHelp").textContent =
+      "対応端末ではDisplay-P3の広色域PNGとして保存します。解像度は元動画のままです。";
+  } else {
+    $("saveHelp").textContent =
+      "元動画/GIFの解像度のままPNG保存します。PNGは無劣化です。";
+  }
 }
 
 function setSaveStatus(message, kind = "") {
@@ -505,5 +667,37 @@ function formatDuration(s) {
   const sec = Math.floor(s % 60);
   return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
 }
+
+
+function detectP3ExportSupport() {
+  const el = $("hdrCapability");
+
+  try {
+    const testCanvas = document.createElement("canvas");
+    testCanvas.width = 2;
+    testCanvas.height = 2;
+
+    const testCtx = testCanvas.getContext("2d", {
+      colorSpace: "display-p3"
+    });
+
+    const attrs = testCtx?.getContextAttributes?.();
+    p3ExportSupported = !!testCtx && (!attrs?.colorSpace || attrs.colorSpace === "display-p3");
+
+    if (p3ExportSupported) {
+      el.textContent = "HDR/P3書き出し対応：Display-P3 Canvasを利用できます。";
+      el.className = "hdr-capability ok";
+    } else {
+      el.textContent = "HDR/P3書き出し非対応：このブラウザでは通常PNG/JPEGを使用してください。";
+      el.className = "hdr-capability warn";
+    }
+  } catch (_) {
+    p3ExportSupported = false;
+    el.textContent = "HDR/P3書き出し非対応：このブラウザでは通常PNG/JPEGを使用してください。";
+    el.className = "hdr-capability warn";
+  }
+}
+
+detectP3ExportSupport();
 
 updateSaveFormatUI();

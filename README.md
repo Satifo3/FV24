@@ -77,3 +77,54 @@ Safari等のWebアプリは、WebサイトからiPhone内の任意フォルダ�
 - JPEG保存時は透過部分を黒背景へ合成
 - 保存ボタンと説明文が選択形式に応じて自動切り替え
 - PC/iPhone/iPadの保存先選択フローはv1.2から継続
+
+
+## v1.4 iPhone HEVC(H.265)対応強化
+
+- iPhoneで撮影したHEVC(H.265)動画の読み込みを強化
+- MOV / MP4 / M4Vコンテナに対応
+- `hvc1` / `hev1` のブラウザ再生能力を確認
+- iOSやファイルアプリ経由でMIMEタイプが空・不正確な場合でも、
+  MOV / MP4 / M4Vとして複数のMIMEタイプを自動再試行
+- HEVC動画も元の動画解像度でプレビュー
+- HEVC動画からのPNG / JPEG保存も元解像度を維持
+- 読み込み失敗時にHEVC対応状況を分かりやすく案内
+
+### HEVCについて
+
+iPhoneの「高効率」設定で撮影した動画は、通常HEVC(H.265)をMOVまたはMP4コンテナに保存します。
+Frame Viewer 24は動画をサーバーへ変換せず、端末・ブラウザのネイティブ動画デコーダーを利用します。
+
+- iPhone/iPadのSafari系ブラウザ: HEVCを利用できる環境ではそのまま読み込み可能
+- Mac: SafariなどOSのHEVCデコーダーを利用できるブラウザで読み込み可能
+- Windows/Android: ブラウザ・OS・HEVCコーデックの有無によって対応状況が異なる
+
+注意: `.hevc` / `.h265` のような「生のHEVCビットストリーム」は通常のブラウザ動画要素では扱えません。
+iPhoneカメラのMOV/MP4動画を対象としています。
+
+### HDR / Dolby Visionについて
+
+HEVCの元動画がHDRやDolby Visionの場合、動画プレビューは端末側の映像処理に依存します。
+PNG/JPEG書き出しはブラウザのcanvasを経由するため、解像度は元のままでもHDRメタデータ自体は保持されません。
+
+
+## v1.5 HDR / Display-P3書き出し
+
+- 書き出し形式に `HDR / P3` を追加
+- 対応ブラウザではDisplay-P3 Canvasを使用
+- 元動画と同じ解像度を維持したまま、広色域PNGとして保存
+- ブラウザがDisplay-P3 Canvasに対応しているか自動判定
+- 非対応ブラウザでは警告表示
+
+### 重要: 「完全なHDR静止画」との違い
+
+WebブラウザのCanvasからPNGへ書き出す方式では、Display-P3の広色域を扱える環境はありますが、
+HEVC HDR動画が持つPQ/HLG、最大輝度、HDR10/Dolby Vision等のHDRメタデータを
+PNGへ完全に引き継ぐことはできません。
+
+そのためv1.5の `HDR / P3` は、
+「通常sRGBより広い色域を維持しやすい高画質書き出し」であり、
+HDR10/HLG/Dolby Vision対応の静止画ファイルを生成する機能ではありません。
+
+真のHDR静止画書き出し（HDR HEIF / HDR AVIF等）をGitHub Pagesだけで行うには、
+WASMベースの専用エンコーダーなど追加実装が必要です。

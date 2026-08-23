@@ -120,3 +120,27 @@ footer{text-align:center;color:#687286;font-size:11px;padding:20px 0}
   border-color:#7e8bff !important;
   color:white !important;
 }
+
+
+/* v1.5: HDR / Display-P3 export */
+.export-segmented{
+  grid-template-columns:repeat(3,1fr);
+}
+.hdr-capability{
+  margin:-3px 0 12px;
+  padding:8px 10px;
+  border:1px solid #343d50;
+  border-radius:10px;
+  background:#111722;
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.5;
+}
+.hdr-capability.ok{
+  color:#c7f7d1;
+  border-color:#335d41;
+}
+.hdr-capability.warn{
+  color:#ffd7a0;
+  border-color:#6c5734;
+}

@@ -15,7 +15,7 @@
         <h1>Frame Viewer <span>24</span></h1>
       </div>
       <button id="openBtn" class="primary">動画 / GIFを開く</button>
-      <input id="fileInput" type="file" accept="video/mp4,video/webm,video/quicktime,image/gif,.mp4,.webm,.mov,.gif" hidden />
+      <input id="fileInput" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v,image/gif,.mp4,.m4v,.webm,.mov,.gif" hidden />
     </header>
 
     <section class="viewer-card">
@@ -26,8 +26,9 @@
         <div id="emptyState" class="empty">
           <div class="empty-icon">24</div>
           <h2>動画またはGIFを読み込んでください</h2>
-          <p>MP4 / WebM / MOV※ / GIF</p>
-          <small>※ MOVはブラウザが再生できるコーデックの場合のみ対応</small>
+          <p>MP4 / MOV / M4V / WebM / GIF</p>
+          <small>iPhoneのHEVC(H.265)動画にも対応※</small>
+          <small>※ HEVCは端末・ブラウザ側のデコーダー対応が必要です</small>
         </div>
 
         <div id="hud" class="hud" hidden>
@@ -81,11 +82,13 @@
           <div class="segmented export-segmented" role="group" aria-label="画像保存形式">
             <button type="button" class="format-btn active" data-format="png">PNG</button>
             <button type="button" class="format-btn" data-format="jpeg">JPEG</button>
+            <button type="button" class="format-btn" data-format="p3png">HDR / P3</button>
           </div>
+          <div id="hdrCapability" class="hdr-capability">HDR/P3対応を確認中…</div>
         </div>
 
         <button id="saveBtn" class="secondary">保存先を選んでPNG保存</button>
-        <p id="saveHelp">元動画/GIFの解像度のまま保存します。PNGは無劣化、JPEGは高画質設定です。</p>
+        <p id="saveHelp">元動画/GIFの解像度のまま保存します。HDR/P3は対応ブラウザでDisplay-P3 PNGとして書き出します。</p>
         <p id="saveStatus" class="save-status" aria-live="polite"></p>
       </article>
     </section>
