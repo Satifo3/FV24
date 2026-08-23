@@ -15,7 +15,7 @@
           <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
           <h1>Frame Viewer <span>24</span></h1>
         </div>
-        <span class="version-badge">v1.6.3</span>
+        <span class="version-badge">v1.7</span>
       </div>
 
       <div class="top-actions">
@@ -72,8 +72,22 @@
         </section>
       </section>
 
+      <div class="mobile-quickbar">
+        <button type="button" id="mobilePrevBtn">◀ 1F</button>
+        <button type="button" id="mobilePlayBtn" class="mobile-play">▶</button>
+        <button type="button" id="mobileNextBtn">1F ▶</button>
+        <button type="button" id="mobileGridToggle">グリッド</button>
+        <button type="button" id="mobileValueToggle">バリュー</button>
+      </div>
+
       <aside class="side-column">
-        <section class="panel overlay-panel">
+        <div class="mobile-section-tabs" aria-label="スマホ設定タブ">
+          <button type="button" class="mobile-tab active" data-mobile-panel="overlay-panel">表示</button>
+          <button type="button" class="mobile-tab" data-mobile-panel="transport-panel">コマ送り</button>
+          <button type="button" class="mobile-tab" data-mobile-panel="export-panel">保存</button>
+        </div>
+
+        <section class="panel overlay-panel mobile-panel active-mobile-panel">
           <h3>表示オーバーレイ</h3>
 
           <div class="control-group">
@@ -140,7 +154,7 @@
           <p class="note">※ グリッドとバリューはプレビュー専用です。画像書き出しには含めません。</p>
         </section>
 
-        <section class="panel transport-panel">
+        <section class="panel transport-panel mobile-panel">
           <h3>コマ送り</h3>
           <div class="segmented">
             <button data-step="1" class="step active">1F</button>
@@ -151,7 +165,7 @@
           <p>← / → キーでもコマ送りできます。</p>
         </section>
 
-        <section class="panel">
+        <section class="panel export-panel mobile-panel">
           <h3>画像を書き出し</h3>
 
           <div class="export-format">

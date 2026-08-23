@@ -72,6 +72,42 @@ $("lastBtn").addEventListener("click", () => goToFrame(Math.max(0,totalFrames - 
 playBtn.addEventListener("click", togglePlay);
 $("saveBtn").addEventListener("click", saveCurrentFrame);
 
+const mobilePrevBtn = $("mobilePrevBtn");
+const mobilePlayBtn = $("mobilePlayBtn");
+const mobileNextBtn = $("mobileNextBtn");
+const mobileGridToggle = $("mobileGridToggle");
+const mobileValueToggle = $("mobileValueToggle");
+
+mobilePrevBtn?.addEventListener("click", () => goToFrame(currentFrame - stepFrames));
+mobileNextBtn?.addEventListener("click", () => goToFrame(currentFrame + stepFrames));
+mobilePlayBtn?.addEventListener("click", togglePlay);
+
+mobileGridToggle?.addEventListener("click", () => {
+  const cb = $("gridCheck");
+  cb.checked = !cb.checked;
+  cb.dispatchEvent(new Event("change"));
+  updateMobileQuickState();
+});
+
+mobileValueToggle?.addEventListener("click", () => {
+  const cb = $("valueCheck");
+  cb.checked = !cb.checked;
+  cb.dispatchEvent(new Event("change"));
+  updateMobileQuickState();
+});
+
+document.querySelectorAll(".mobile-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const target = btn.dataset.mobilePanel;
+
+    document.querySelectorAll(".mobile-tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".mobile-panel").forEach(p => p.classList.remove("active-mobile-panel"));
+
+    btn.classList.add("active");
+    document.querySelector(`.${target}`)?.classList.add("active-mobile-panel");
+  });
+});
+
 document.querySelectorAll(".step").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".step").forEach(b => b.classList.remove("active"));
@@ -99,6 +135,7 @@ $("gridCheck").addEventListener("change", e => {
   gridEnabled = e.target.checked;
   $("gridOptions").classList.toggle("disabled", !gridEnabled);
   renderOverlays();
+  updateMobileQuickState();
 });
 
 $("gridColor").addEventListener("input", e => {
@@ -124,6 +161,7 @@ document.querySelectorAll(".color-preset").forEach(btn => {
 $("valueCheck").addEventListener("change", e => {
   valueEnabled = e.target.checked;
   renderOverlays();
+  updateMobileQuickState();
 });
 
 $("exportOverlayCheck").addEventListener("change", e => {
@@ -727,6 +765,15 @@ function drawLine(g, x1, y1, x2, y2) {
   g.stroke();
 }
 
+function updateMobileQuickState() {
+  if (mobileGridToggle) {
+    mobileGridToggle.classList.toggle("active", gridEnabled);
+  }
+  if (mobileValueToggle) {
+    mobileValueToggle.classList.toggle("active", valueEnabled);
+  }
+}
+
 function updateUI() {
   timeline.value = currentFrame;
   const shownFrame = currentFrame + 1;
@@ -752,6 +799,7 @@ function startPlayback() {
   if (currentFrame >= totalFrames - 1) currentFrame = 0;
   isPlaying = true;
   playBtn.textContent = "Ⅱ";
+  if (mobilePlayBtn) mobilePlayBtn.textContent = "Ⅱ";
 
   let nextAt = performance.now();
   const frameMs = 1000 / FPS;
@@ -775,6 +823,7 @@ function startPlayback() {
 function pausePlayback() {
   isPlaying = false;
   playBtn.textContent = "▶";
+  if (mobilePlayBtn) mobilePlayBtn.textContent = "▶";
   if (playTimer) cancelAnimationFrame(playTimer);
   playTimer = null;
 }
@@ -979,3 +1028,5 @@ function detectP3ExportSupport() {
 detectP3ExportSupport();
 
 updateSaveFormatUI();
+
+updateMobileQuickState();
