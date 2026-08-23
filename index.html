@@ -70,13 +70,14 @@
       <article class="panel">
         <h3>表示</h3>
         <label class="check"><input id="fitCheck" type="checkbox" checked /> 画面内にフィット</label>
-        <label class="check"><input id="overlayCheck" type="checkbox" checked /> フレーム情報を表示</label>
+        <label class="check"><input id="overlayCheck" type="checkbox" /> 動画上にフレーム情報を表示</label>
       </article>
 
       <article class="panel">
         <h3>書き出し</h3>
-        <button id="saveBtn" class="secondary">現在のコマをPNG保存</button>
-        <p>表示中の1コマをそのまま画像化します。</p>
+        <button id="saveBtn" class="secondary">保存先を選んでPNG保存</button>
+        <p id="saveHelp">PCは保存先ダイアログ、iPhone/iPadは共有シートから「ファイルに保存」を選べます。</p>
+        <p id="saveStatus" class="save-status" aria-live="polite"></p>
       </article>
     </section>
 
