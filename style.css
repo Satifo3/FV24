@@ -700,3 +700,11 @@ footer{text-align:center;color:#687286;font-size:11px;padding:14px 0}
     height:auto;
   }
 }
+
+
+/* v1.8: still-image mode */
+.viewer.still-mode .transport button,
+.viewer.still-mode + .transport button{
+  opacity:.45;
+  pointer-events:none;
+}

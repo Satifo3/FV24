@@ -46,6 +46,8 @@ let gridType = "thirds";
 let exportOverlays = true;
 let gridColor = "#ff4b4b";
 let gridOpacity = 0.68;
+let stillImageBitmap = null;
+let stillImageFileName = "";
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -194,11 +196,18 @@ async function loadFile(file) {
   clearSource();
 
   const lower = file.name.toLowerCase();
+
   if (file.type === "image/gif" || lower.endsWith(".gif")) {
     await loadGif(file);
-  } else {
-    await loadVideo(file);
+    return;
   }
+
+  if (isStillImageFile(file)) {
+    await loadStillImage(file);
+    return;
+  }
+
+  await loadVideo(file);
 }
 
 function clearSource() {
@@ -212,6 +221,9 @@ function clearSource() {
   gifHeight = 0;
   fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
   gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+  stillImageBitmap = null;
+  stillImageFileName = "";
+  dropZone.classList.remove("still-mode");
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = null;
 
@@ -223,6 +235,92 @@ function clearSource() {
   video.removeEventListener("seeked", drawVideoFrame);
   video.removeAttribute("src");
   video.load();
+}
+
+function isStillImageFile(file) {
+  const lower = file.name.toLowerCase();
+  const type = (file.type || "").toLowerCase();
+
+  return (
+    type === "image/png" ||
+    type === "image/jpeg" ||
+    type === "image/heif" ||
+    type === "image/heic" ||
+    lower.endsWith(".png") ||
+    lower.endsWith(".jpg") ||
+    lower.endsWith(".jpeg") ||
+    lower.endsWith(".heif") ||
+    lower.endsWith(".heic")
+  );
+}
+
+async function loadStillImage(file) {
+  mode = "image";
+  stillImageFileName = file.name;
+
+  try {
+    let bitmap;
+
+    // PNG / JPEG / browser-native HEIF/HEIC
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch (nativeErr) {
+      // HEIF / HEIC fallback for browsers that cannot decode them natively.
+      const lower = file.name.toLowerCase();
+      const isHeif =
+        file.type === "image/heif" ||
+        file.type === "image/heic" ||
+        lower.endsWith(".heif") ||
+        lower.endsWith(".heic");
+
+      if (!isHeif || typeof window.heic2any !== "function") {
+        throw nativeErr;
+      }
+
+      const converted = await window.heic2any({
+        blob: file,
+        toType: "image/png",
+        quality: 1
+      });
+
+      const convertedBlob = Array.isArray(converted) ? converted[0] : converted;
+      bitmap = await createImageBitmap(convertedBlob);
+    }
+
+    if (!bitmap?.width || !bitmap?.height) {
+      throw new Error("画像サイズを取得できませんでした。");
+    }
+
+    stillImageBitmap = bitmap;
+
+    totalFrames = 1;
+    currentFrame = 0;
+
+    setupCanvas(bitmap.width, bitmap.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    timeline.min = 0;
+    timeline.max = 0;
+    timeline.value = 0;
+
+    dropZone.classList.add("still-mode");
+
+    sourceInfo.textContent =
+      `${file.name} / ${bitmap.width}×${bitmap.height} / 静止画`;
+
+    showLoadedUI();
+    renderOverlays();
+    updateUI();
+  } catch (err) {
+    console.error("Still image load failed:", err);
+    mode = null;
+    alert(
+      "画像を読み込めませんでした。\n\n" +
+      "PNG / JPEG / HEIF / HEIC を選んでください。" +
+      "\nHEIF/HEICは端末・ブラウザによって対応状況が異なります。"
+    );
+  }
 }
 
 async function loadVideo(file) {
@@ -443,6 +541,18 @@ function clampFrame(n) {
 
 async function goToFrame(frame) {
   if (!mode) return;
+
+  if (mode === "image") {
+    currentFrame = 0;
+    if (stillImageBitmap) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(stillImageBitmap, 0, 0, canvas.width, canvas.height);
+      renderOverlays();
+    }
+    updateUI();
+    return;
+  }
+
   currentFrame = clampFrame(frame);
 
   if (mode === "video") {
@@ -792,6 +902,15 @@ function updateMobileQuickState() {
 
 function updateUI() {
   timeline.value = currentFrame;
+
+  if (mode === "image") {
+    currentFrameEl.textContent = "静止画";
+    totalFramesEl.textContent = "";
+    frameHud.textContent = "STILL";
+    timeHud.textContent = "IMAGE";
+    return;
+  }
+
   const shownFrame = currentFrame + 1;
   currentFrameEl.textContent = `${String(shownFrame).padStart(6,"0")} K`;
   totalFramesEl.textContent = `/ ${String(totalFrames).padStart(6,"0")} K`;
@@ -806,7 +925,7 @@ function updateUI() {
 }
 
 function togglePlay() {
-  if (!mode) return;
+  if (!mode || mode === "image") return;
   if (isPlaying) pausePlayback();
   else startPlayback();
 }
@@ -853,7 +972,11 @@ async function saveCurrentFrame() {
   const extension = isJpeg ? "jpg" : "png";
   const mimeType = isJpeg ? "image/jpeg" : "image/png";
   const formatLabel = isJpeg ? "JPEG" : (isP3 ? "HDR/P3 PNG" : "PNG");
-  const fileName = `koma_${String(currentFrame + 1).padStart(6,"0")}_24fps${isP3 ? "_P3" : ""}.${extension}`;
+  const baseName = mode === "image"
+    ? sanitizeBaseName(stillImageFileName || "image")
+    : `koma_${String(currentFrame + 1).padStart(6,"0")}_24fps`;
+
+  const fileName = `${baseName}${isP3 ? "_P3" : ""}.${extension}`;
 
   setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} で${formatLabel}を準備しています…`);
 
@@ -966,6 +1089,11 @@ async function saveCurrentFrame() {
     alert(err.message || "画像を保存できませんでした。");
   }
 }
+function sanitizeBaseName(name) {
+  const noExt = String(name || "image").replace(/\.[^.]+$/, "");
+  return noExt.replace(/[\\/:*?"<>|]+/g, "_").trim() || "image";
+}
+
 function canvasToBlob(targetCanvas, type = "image/png", quality) {
   return new Promise((resolve, reject) => {
     try {
