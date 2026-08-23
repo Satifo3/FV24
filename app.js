@@ -30,6 +30,8 @@ let gifFrames = [];
 let gifCanvas = null;
 let gifCtx = null;
 let gifTotalDurationMs = 0;
+let gifWidth = 0;
+let gifHeight = 0;
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -99,6 +101,8 @@ function clearSource() {
   mode = null;
   gifFrames = [];
   gifTotalDurationMs = 0;
+  gifWidth = 0;
+  gifHeight = 0;
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = null;
   video.removeAttribute("src");
@@ -122,7 +126,7 @@ async function loadVideo(file) {
 
   totalFrames = Math.max(1, Math.ceil(video.duration * FPS));
   setupCanvas(video.videoWidth, video.videoHeight);
-  sourceInfo.textContent = `${file.name} / ${formatDuration(video.duration)} / 24fps換算`;
+  sourceInfo.textContent = `${file.name} / ${video.videoWidth}×${video.videoHeight} / ${formatDuration(video.duration)} / 24fps換算`;
   showLoadedUI();
 
   video.addEventListener("seeked", drawVideoFrame);
@@ -147,28 +151,38 @@ async function loadGif(file) {
   }
 
   gifFrames = frames;
-  const w = frames[0].dims.width;
-  const h = frames[0].dims.height;
+
+  // GIFは各フレームが「差分パッチ」だけの場合があるため、
+  // 1枚目のパッチサイズではなくGIF全体の論理解像度を使う。
+  gifWidth = gif?.lsd?.width || Math.max(...frames.map(f => f.dims.left + f.dims.width));
+  gifHeight = gif?.lsd?.height || Math.max(...frames.map(f => f.dims.top + f.dims.height));
+
   gifCanvas = document.createElement("canvas");
-  gifCanvas.width = w;
-  gifCanvas.height = h;
-  gifCtx = gifCanvas.getContext("2d");
+  gifCanvas.width = gifWidth;
+  gifCanvas.height = gifHeight;
+  gifCtx = gifCanvas.getContext("2d", { alpha: true });
+  gifCtx.imageSmoothingEnabled = true;
+  gifCtx.imageSmoothingQuality = "high";
 
   // GIFのdelayは通常 1/100秒単位相当。gifuct-jsはms相当で返す。
   gifTotalDurationMs = frames.reduce((sum, f) => sum + Math.max(10, f.delay || 100), 0);
   totalFrames = Math.max(1, Math.ceil((gifTotalDurationMs / 1000) * FPS));
 
-  setupCanvas(w, h);
-  sourceInfo.textContent = `${file.name} / ${formatDuration(gifTotalDurationMs/1000)} / 24fps換算`;
+  setupCanvas(gifWidth, gifHeight);
+  sourceInfo.textContent = `${file.name} / ${gifWidth}×${gifHeight} / ${formatDuration(gifTotalDurationMs/1000)} / 24fps換算`;
   showLoadedUI();
   renderGifAtTime(0);
   updateUI();
 }
 
 function setupCanvas(w,h) {
-  canvas.width = w || 1280;
-  canvas.height = h || 720;
+  // canvasの内部解像度をソースそのものに合わせる。
+  // CSSだけで画面サイズに縮小するので、4K等の元データは4Kのまま保持される。
+  canvas.width = Math.max(1, Math.round(w || 1280));
+  canvas.height = Math.max(1, Math.round(h || 720));
   canvas.style.display = "block";
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#000";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 }
@@ -221,21 +235,29 @@ function drawVideoFrame() {
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
     setupCanvas(video.videoWidth, video.videoHeight);
   }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // デコードされた元動画のネイティブ解像度をそのままcanvasへコピーする。
+  // プレビューはCSSで縮小表示されても、内部画素数は元動画のまま。
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, 0, 0);
 }
 
 function renderGifAtTime(seconds) {
   if (!gifFrames.length) return;
 
   const targetMs = Math.max(0, seconds * 1000);
-  gifCtx.clearRect(0,0,gifCanvas.width,gifCanvas.height);
+  gifCtx.clearRect(0, 0, gifWidth, gifHeight);
 
   let elapsed = 0;
+  let previousSnapshot = null;
+
   for (const f of gifFrames) {
-    if (f.disposalType === 2) {
-      // Disposal is applied after the frame duration. For this lightweight viewer
-      // we redraw progressively; most reference GIFs work as expected.
+    // disposalType=3（前の状態へ戻す）用に、描画前の状態を保持。
+    let restoreSnapshot = null;
+    if (f.disposalType === 3) {
+      restoreSnapshot = gifCtx.getImageData(0, 0, gifWidth, gifHeight);
     }
+
     const imageData = new ImageData(
       new Uint8ClampedArray(f.patch),
       f.dims.width,
@@ -244,14 +266,32 @@ function renderGifAtTime(seconds) {
     const patchCanvas = document.createElement("canvas");
     patchCanvas.width = f.dims.width;
     patchCanvas.height = f.dims.height;
-    patchCanvas.getContext("2d").putImageData(imageData,0,0);
+    const patchCtx = patchCanvas.getContext("2d");
+    patchCtx.putImageData(imageData, 0, 0);
+
     gifCtx.drawImage(patchCanvas, f.dims.left, f.dims.top);
 
-    elapsed += Math.max(10, f.delay || 100);
+    const delay = Math.max(10, f.delay || 100);
+    elapsed += delay;
+
+    // 今のフレームが指定時刻なら、この合成結果を表示。
     if (elapsed > targetMs) break;
+
+    // 次フレームへ進む前にGIFのdisposal処理を適用。
+    if (f.disposalType === 2) {
+      gifCtx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
+    } else if (f.disposalType === 3 && restoreSnapshot) {
+      gifCtx.putImageData(restoreSnapshot, 0, 0);
+    }
+
+    previousSnapshot = restoreSnapshot;
   }
 
-  ctx.drawImage(gifCanvas, 0, 0, canvas.width, canvas.height);
+  if (canvas.width !== gifWidth || canvas.height !== gifHeight) {
+    setupCanvas(gifWidth, gifHeight);
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(gifCanvas, 0, 0);
 }
 
 function updateUI() {
@@ -310,7 +350,7 @@ async function saveCurrentFrame() {
   if (!mode) return;
 
   const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps.png`;
-  setSaveStatus("画像を準備しています…");
+  setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} でPNGを準備しています…`);
 
   try {
     const blob = await canvasToBlob(canvas, "image/png");
@@ -330,7 +370,7 @@ async function saveCurrentFrame() {
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
-        setSaveStatus("指定した保存先にPNGを保存しました。", "ok");
+        setSaveStatus(`指定した保存先に ${canvas.width}×${canvas.height} のPNGを保存しました。`, "ok");
         return;
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -354,7 +394,7 @@ async function saveCurrentFrame() {
           files: [file],
           title: fileName
         });
-        setSaveStatus("共有シートへPNGを渡しました。", "ok");
+        setSaveStatus(`共有シートへ ${canvas.width}×${canvas.height} のPNGを渡しました。`, "ok");
         return;
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -374,7 +414,7 @@ async function saveCurrentFrame() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
-    setSaveStatus("ブラウザのダウンロード機能で保存しました。", "ok");
+    setSaveStatus(`ブラウザのダウンロード機能で ${canvas.width}×${canvas.height} のPNGを保存しました。`, "ok");
   } catch (err) {
     console.error(err);
     setSaveStatus(`保存できませんでした: ${err.message || err}`, "error");
