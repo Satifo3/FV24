@@ -793,9 +793,9 @@ function updateMobileQuickState() {
 function updateUI() {
   timeline.value = currentFrame;
   const shownFrame = currentFrame + 1;
-  currentFrameEl.textContent = `${String(shownFrame).padStart(6,"0")} F`;
-  totalFramesEl.textContent = `/ ${String(totalFrames).padStart(6,"0")} F`;
-  frameHud.textContent = `F ${String(shownFrame).padStart(6,"0")}`;
+  currentFrameEl.textContent = `${String(shownFrame).padStart(6,"0")} K`;
+  totalFramesEl.textContent = `/ ${String(totalFrames).padStart(6,"0")} K`;
+  frameHud.textContent = `K ${String(shownFrame).padStart(6,"0")}`;
 
   const totalSeconds = currentFrame / FPS;
   const wholeSec = Math.floor(totalSeconds);
@@ -853,7 +853,7 @@ async function saveCurrentFrame() {
   const extension = isJpeg ? "jpg" : "png";
   const mimeType = isJpeg ? "image/jpeg" : "image/png";
   const formatLabel = isJpeg ? "JPEG" : (isP3 ? "HDR/P3 PNG" : "PNG");
-  const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps${isP3 ? "_P3" : ""}.${extension}`;
+  const fileName = `koma_${String(currentFrame + 1).padStart(6,"0")}_24fps${isP3 ? "_P3" : ""}.${extension}`;
 
   setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} で${formatLabel}を準備しています…`);
 

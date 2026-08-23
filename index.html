@@ -15,7 +15,7 @@
           <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
           <h1>Frame Viewer <span>24</span></h1>
         </div>
-        <span class="version-badge">v1.7.1</span>
+        <span class="version-badge">v1.7.2</span>
       </div>
 
       <div class="top-actions">
@@ -47,24 +47,24 @@
             </div>
 
             <div id="hud" class="hud" hidden>
-              <span id="frameHud">F 000001</span>
+              <span id="frameHud">K 000001</span>
               <span id="timeHud">00:00 + 00</span>
             </div>
           </div>
 
           <div class="transport">
             <button id="firstBtn" title="先頭">|◀</button>
-            <button id="prevBtn" class="big" title="1コマ戻る">◀ 1F</button>
+            <button id="prevBtn" class="big" title="1コマ戻る">◀ 1K</button>
             <button id="playBtn" class="play" title="24fpsで再生">▶</button>
-            <button id="nextBtn" class="big" title="1コマ進む">1F ▶</button>
+            <button id="nextBtn" class="big" title="1コマ進む">1K ▶</button>
             <button id="lastBtn" title="末尾">▶|</button>
           </div>
 
           <div class="timeline-wrap">
             <input id="timeline" type="range" min="0" max="0" value="0" step="1" />
             <div class="timeline-meta">
-              <strong id="currentFrame">000001 F</strong>
-              <span id="totalFrames">/ 000000 F</span>
+              <strong id="currentFrame">000001 K</strong>
+              <span id="totalFrames">/ 000000 K</span>
               <span class="spacer"></span>
               <span id="sourceInfo">24 fps表示</span>
             </div>
@@ -73,9 +73,9 @@
       </section>
 
       <div class="mobile-quickbar">
-        <button type="button" id="mobilePrevBtn">◀ 1F</button>
+        <button type="button" id="mobilePrevBtn">◀ 1K</button>
         <button type="button" id="mobilePlayBtn" class="mobile-play">▶</button>
-        <button type="button" id="mobileNextBtn">1F ▶</button>
+        <button type="button" id="mobileNextBtn">1K ▶</button>
         <button type="button" id="mobileGridToggle">グリッド</button>
         <button type="button" id="mobileValueToggle">バリュー</button>
       </div>
@@ -153,10 +153,10 @@
         <section class="panel transport-panel mobile-panel">
           <h3>コマ送り</h3>
           <div class="segmented">
-            <button data-step="1" class="step active">1F</button>
-            <button data-step="2" class="step">2F</button>
-            <button data-step="3" class="step">3F</button>
-            <button data-step="6" class="step">6F</button>
+            <button data-step="1" class="step active">1K</button>
+            <button data-step="2" class="step">2K</button>
+            <button data-step="3" class="step">3K</button>
+            <button data-step="6" class="step">6K</button>
           </div>
           <p>← / → キーでもコマ送りできます。</p>
         </section>
