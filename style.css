@@ -98,3 +98,25 @@ footer{text-align:center;color:#687286;font-size:11px;padding:20px 0}
   max-height:68vh;
   image-rendering:auto;
 }
+
+
+/* v1.3: PNG / JPEG 保存形式切り替え */
+.export-format{
+  margin-bottom:12px;
+}
+.export-label{
+  display:block;
+  margin-bottom:8px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+}
+.export-segmented{
+  grid-template-columns:repeat(2,1fr);
+  margin-bottom:12px;
+}
+.format-btn.active{
+  background:#6272ea !important;
+  border-color:#7e8bff !important;
+  color:white !important;
+}

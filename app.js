@@ -32,6 +32,8 @@ let gifCtx = null;
 let gifTotalDurationMs = 0;
 let gifWidth = 0;
 let gifHeight = 0;
+let exportFormat = "png";
+const JPEG_QUALITY = 0.95;
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -63,6 +65,15 @@ document.querySelectorAll(".step").forEach(btn => {
     document.querySelectorAll(".step").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     stepFrames = Number(btn.dataset.step);
+  });
+});
+
+document.querySelectorAll(".format-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".format-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    exportFormat = btn.dataset.format === "jpeg" ? "jpeg" : "png";
+    updateSaveFormatUI();
   });
 });
 
@@ -349,52 +360,88 @@ function pausePlayback() {
 async function saveCurrentFrame() {
   if (!mode) return;
 
-  const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps.png`;
-  setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} でPNGを準備しています…`);
+  const isJpeg = exportFormat === "jpeg";
+  const extension = isJpeg ? "jpg" : "png";
+  const mimeType = isJpeg ? "image/jpeg" : "image/png";
+  const formatLabel = isJpeg ? "JPEG" : "PNG";
+  const fileName = `frame_${String(currentFrame + 1).padStart(6,"0")}_24fps.${extension}`;
+
+  setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} で${formatLabel}を準備しています…`);
 
   try {
-    const blob = await canvasToBlob(canvas, "image/png");
-    if (!blob) throw new Error("PNG画像を作成できませんでした。");
+    // JPEGは透過を持てないため黒背景へ合成してから書き出す。
+    // 動画フレームは通常不透明だが、GIFの透過にも対応する。
+    let exportCanvas = canvas;
 
-    // PC版Chrome / Edgeなど:
-    // ユーザーが保存フォルダとファイル名を直接選べる。
+    if (isJpeg) {
+      const jpegCanvas = document.createElement("canvas");
+      jpegCanvas.width = canvas.width;
+      jpegCanvas.height = canvas.height;
+      const jpegCtx = jpegCanvas.getContext("2d", { alpha: false });
+      jpegCtx.fillStyle = "#000";
+      jpegCtx.fillRect(0, 0, jpegCanvas.width, jpegCanvas.height);
+      jpegCtx.drawImage(canvas, 0, 0);
+      exportCanvas = jpegCanvas;
+    }
+
+    const blob = await canvasToBlob(
+      exportCanvas,
+      mimeType,
+      isJpeg ? JPEG_QUALITY : undefined
+    );
+
+    if (!blob) throw new Error(`${formatLabel}画像を作成できませんでした。`);
+
+    // PC版Chrome / Edgeなど
     if ("showSaveFilePicker" in window) {
       try {
+        const pickerTypes = isJpeg
+          ? [{
+              description: "JPEG画像",
+              accept: { "image/jpeg": [".jpg", ".jpeg"] }
+            }]
+          : [{
+              description: "PNG画像",
+              accept: { "image/png": [".png"] }
+            }];
+
         const handle = await window.showSaveFilePicker({
           suggestedName: fileName,
-          types: [{
-            description: "PNG画像",
-            accept: { "image/png": [".png"] }
-          }]
+          types: pickerTypes
         });
+
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
-        setSaveStatus(`指定した保存先に ${canvas.width}×${canvas.height} のPNGを保存しました。`, "ok");
+
+        setSaveStatus(
+          `指定した保存先に ${canvas.width}×${canvas.height} の${formatLabel}を保存しました。`,
+          "ok"
+        );
         return;
       } catch (err) {
         if (err?.name === "AbortError") {
           setSaveStatus("保存をキャンセルしました。");
           return;
         }
-        // File System Access APIが実装されていても利用不能な環境では
-        // 下の共有シート方式へフォールバックする。
         console.warn("File picker failed:", err);
       }
     }
 
-    const file = new File([blob], fileName, { type: "image/png" });
+    const file = new File([blob], fileName, { type: mimeType });
 
-    // iPhone / iPad / Safari等:
-    // Webサイト側から任意フォルダへ直接書き込むことはできないため、
-    // OSの共有シートを開く。「ファイルに保存」を選ぶと保存先を指定できる。
+    // iPhone / iPad / Safari等
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
         await navigator.share({
           files: [file],
           title: fileName
         });
-        setSaveStatus(`共有シートへ ${canvas.width}×${canvas.height} のPNGを渡しました。`, "ok");
+
+        setSaveStatus(
+          `共有シートへ ${canvas.width}×${canvas.height} の${formatLabel}を渡しました。`,
+          "ok"
+        );
         return;
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -405,7 +452,7 @@ async function saveCurrentFrame() {
       }
     }
 
-    // 最終フォールバック: 通常のブラウザダウンロード。
+    // 最終フォールバック
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -414,14 +461,17 @@ async function saveCurrentFrame() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
-    setSaveStatus(`ブラウザのダウンロード機能で ${canvas.width}×${canvas.height} のPNGを保存しました。`, "ok");
+
+    setSaveStatus(
+      `ブラウザのダウンロード機能で ${canvas.width}×${canvas.height} の${formatLabel}を保存しました。`,
+      "ok"
+    );
   } catch (err) {
     console.error(err);
     setSaveStatus(`保存できませんでした: ${err.message || err}`, "error");
     alert("画像を保存できませんでした。別のブラウザでも試してください。");
   }
 }
-
 function canvasToBlob(targetCanvas, type = "image/png", quality) {
   return new Promise((resolve, reject) => {
     try {
@@ -433,6 +483,14 @@ function canvasToBlob(targetCanvas, type = "image/png", quality) {
       reject(err);
     }
   });
+}
+
+function updateSaveFormatUI() {
+  const isJpeg = exportFormat === "jpeg";
+  $("saveBtn").textContent = `保存先を選んで${isJpeg ? "JPEG" : "PNG"}保存`;
+  $("saveHelp").textContent = isJpeg
+    ? `元動画/GIFの解像度のままJPEG保存します。画質は95%の高画質設定です。`
+    : `元動画/GIFの解像度のままPNG保存します。PNGは無劣化です。`;
 }
 
 function setSaveStatus(message, kind = "") {
@@ -447,3 +505,5 @@ function formatDuration(s) {
   const sec = Math.floor(s % 60);
   return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
 }
+
+updateSaveFormatUI();
