@@ -481,174 +481,214 @@ function renderGifAtTime(seconds) {
 function renderOverlays() {
   if (!canvas.width || !canvas.height) return;
 
+  const analysisOn = !!mode && (valueEnabled || gridEnabled);
+  dropZone.classList.toggle("has-analysis", analysisOn);
+
   fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
   gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
 
-  // バリュー確認:
-  // CSS filterではなく、画素データを直接グレースケール化する。
-  // これによりブラウザ差で「モノクロにならない」問題を避ける。
-  if (valueEnabled && mode) {
-    try {
-      fxCtx.drawImage(canvas, 0, 0);
+  if (!analysisOn) return;
 
-      const imageData = fxCtx.getImageData(0, 0, fxCanvas.width, fxCanvas.height);
-      const d = imageData.data;
-
-      for (let i = 0; i < d.length; i += 4) {
-        // Rec.709に近い輝度係数
-        const y = Math.round(
-          d[i] * 0.2126 +
-          d[i + 1] * 0.7152 +
-          d[i + 2] * 0.0722
-        );
-        d[i] = y;
-        d[i + 1] = y;
-        d[i + 2] = y;
-      }
-
-      fxCtx.putImageData(imageData, 0, 0);
-    } catch (err) {
-      console.warn("Value/grayscale render failed:", err);
-
-      // 万一getImageDataが使えない環境ではfilterへフォールバック
-      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
-      fxCtx.save();
-      fxCtx.filter = "grayscale(100%)";
-      fxCtx.drawImage(canvas, 0, 0);
-      fxCtx.restore();
-    }
-  }
-
-  if (gridEnabled && mode) {
-    drawSelectedGrid();
-  }
-}
-function drawSelectedGrid() {
-  const w = gridCanvas.width;
-  const h = gridCanvas.height;
-  if (!w || !h) return;
-
-  gridCtx.save();
-  gridCtx.clearRect(0, 0, w, h);
-  gridCtx.strokeStyle = "rgba(255, 84, 84, 0.92)";
-  gridCtx.lineWidth = Math.max(2, Math.min(w, h) / 700);
-  gridCtx.lineCap = "round";
-  gridCtx.lineJoin = "round";
-
-  if (gridType === "phi") {
-    drawPhiGrid(w, h);
-  } else if (gridType === "spiral") {
-    drawFibonacciSpiral(w, h);
-  } else {
-    drawThirdsGrid(w, h);
-  }
-
-  gridCtx.restore();
-}
-
-function drawThirdsGrid(w, h) {
-  [1/3, 2/3].forEach(r => {
-    line(r*w, 0, r*w, h);
-    line(0, r*h, w, r*h);
+  // プレビューと書き出しで同じ合成関数を使う。
+  // これで「プレビューは効くが保存に出ない」「保存だけ色が戻る」を防ぐ。
+  composeAnalyzedFrame(fxCtx, {
+    value: valueEnabled,
+    grid: gridEnabled,
+    gridKind: gridType
   });
 }
 
-function drawPhiGrid(w, h) {
-  const a = 0.38196601125;
-  const b = 0.61803398875;
+function composeAnalyzedFrame(targetCtx, options = {}) {
+  const w = targetCtx.canvas.width;
+  const h = targetCtx.canvas.height;
+  const useValue = !!options.value;
+  const useGrid = !!options.grid;
+  const kind = options.gridKind || "thirds";
+
+  targetCtx.save();
+  targetCtx.clearRect(0, 0, w, h);
+  targetCtx.globalCompositeOperation = "source-over";
+  targetCtx.globalAlpha = 1;
+
+  // まず元フレームをコピー
+  targetCtx.drawImage(canvas, 0, 0, w, h);
+
+  // バリュー：必ずRGB画素を直接モノクロ化する。
+  // filterやCSSに依存しないのでプレビュー/書き出しとも同一結果になる。
+  if (useValue) {
+    const imageData = targetCtx.getImageData(0, 0, w, h);
+    const p = imageData.data;
+
+    for (let i = 0; i < p.length; i += 4) {
+      // ITU-R BT.709 luminance
+      const y = Math.max(0, Math.min(255, Math.round(
+        p[i] * 0.2126 +
+        p[i + 1] * 0.7152 +
+        p[i + 2] * 0.0722
+      )));
+      p[i] = y;
+      p[i + 1] = y;
+      p[i + 2] = y;
+      p[i + 3] = 255;
+    }
+
+    targetCtx.putImageData(imageData, 0, 0);
+  }
+
+  if (useGrid) {
+    drawGridToContext(targetCtx, kind, w, h);
+  }
+
+  targetCtx.restore();
+}
+
+function drawGridToContext(g, kind, w, h) {
+  g.save();
+  g.strokeStyle = "rgba(255, 75, 75, 0.95)";
+  g.lineWidth = Math.max(2, Math.min(w, h) / 650);
+  g.lineCap = "round";
+  g.lineJoin = "round";
+
+  if (kind === "phi") {
+    drawPhiGrid(g, w, h);
+  } else if (kind === "spiral") {
+    drawFibonacciSpiral(g, w, h);
+  } else {
+    drawThirdsGrid(g, w, h);
+  }
+
+  g.restore();
+}
+
+function drawThirdsGrid(g, w, h) {
+  [1/3, 2/3].forEach(r => {
+    drawLine(g, r*w, 0, r*w, h);
+    drawLine(g, 0, r*h, w, r*h);
+  });
+}
+
+function drawPhiGrid(g, w, h) {
+  const a = 1 / ((1 + Math.sqrt(5)) / 2 + 1); // 0.381966...
+  const b = 1 - a;                             // 0.618034...
 
   [a, b].forEach(r => {
-    line(r*w, 0, r*w, h);
-    line(0, r*h, w, r*h);
+    drawLine(g, r*w, 0, r*w, h);
+    drawLine(g, 0, r*h, w, r*h);
   });
 }
 
-function drawFibonacciSpiral(w, h) {
-  const phi = (1 + Math.sqrt(5)) / 2;
+function drawFibonacciSpiral(g, w, h) {
+  // 参考画像と同じ「黄金長方形を正方形へ順番に分割し、
+  // 各正方形へ1/4円弧を描く」構成。
+  const PHI = (1 + Math.sqrt(5)) / 2;
 
-  // 映像内に収まる黄金長方形を中央に配置
-  let rectW = w;
-  let rectH = rectW / phi;
-
-  if (rectH > h) {
-    rectH = h;
-    rectW = rectH * phi;
+  // 動画の中央に、最大サイズの黄金長方形を収める。
+  let rw = w;
+  let rh = rw / PHI;
+  if (rh > h) {
+    rh = h;
+    rw = rh * PHI;
   }
 
-  const x0 = (w - rectW) / 2;
-  const y0 = (h - rectH) / 2;
+  let x = (w - rw) / 2;
+  let y = (h - rh) / 2;
 
-  // ガイド用の黄金長方形 + 黄金分割線
-  gridCtx.save();
-  gridCtx.globalAlpha = 0.48;
-  gridCtx.strokeRect(x0, y0, rectW, rectH);
+  g.save();
 
-  // 黄金比で分割した補助線
-  let x = x0;
-  let y = y0;
-  let rw = rectW;
-  let rh = rectH;
+  // 外枠と内部の分割線
+  g.globalAlpha = 0.72;
+  g.strokeRect(x, y, rw, rh);
+
+  // dir:
+  // 0 = 左の正方形を切る
+  // 1 = 上の正方形を切る
+  // 2 = 右の正方形を切る
+  // 3 = 下の正方形を切る
   let dir = 0;
+  const squares = [];
 
-  for (let i = 0; i < 7; i++) {
-    if (dir === 0) {
+  for (let i = 0; i < 10; i++) {
+    if (rw <= 2 || rh <= 2) break;
+
+    if (rw >= rh) {
       const s = rh;
-      line(x + s, y, x + s, y + rh);
-      x += s;
-      rw -= s;
-    } else if (dir === 1) {
-      const s = rw;
-      line(x, y + s, x + rw, y + s);
-      y += s;
-      rh -= s;
-    } else if (dir === 2) {
-      const s = rh;
-      line(x + rw - s, y, x + rw - s, y + rh);
-      rw -= s;
+
+      if (dir === 0) {
+        // 左側の正方形
+        squares.push({ x, y, s, corner: "br", start: Math.PI, end: Math.PI * 1.5 });
+        drawLine(g, x + s, y, x + s, y + rh);
+        x += s;
+        rw -= s;
+      } else {
+        // 右側の正方形
+        squares.push({ x: x + rw - s, y, s, corner: "tl", start: 0, end: Math.PI * 0.5 });
+        drawLine(g, x + rw - s, y, x + rw - s, y + rh);
+        rw -= s;
+      }
     } else {
       const s = rw;
-      line(x, y + rh - s, x + rw, y + rh - s);
-      rh -= s;
+
+      if (dir === 1) {
+        // 上側の正方形
+        squares.push({ x, y, s, corner: "bl", start: Math.PI * 1.5, end: Math.PI * 2 });
+        drawLine(g, x, y + s, x + rw, y + s);
+        y += s;
+        rh -= s;
+      } else {
+        // 下側の正方形
+        squares.push({ x, y: y + rh - s, s, corner: "tr", start: Math.PI * 0.5, end: Math.PI });
+        drawLine(g, x, y + rh - s, x + rw, y + rh - s);
+        rh -= s;
+      }
     }
 
     dir = (dir + 1) % 4;
-    if (rw <= 1 || rh <= 1) break;
   }
 
-  gridCtx.restore();
+  // 参考画像のように、それぞれの正方形に連続する1/4円弧を描く。
+  g.globalAlpha = 1;
+  g.beginPath();
 
-  // きれいな黄金スパイラル:
-  // r = a * e^(bθ), 四分円ごとに半径が1/phiになるよう設定
-  const thetaMax = Math.PI * 4.5;
-  const b = -Math.log(phi) / (Math.PI / 2);
+  squares.forEach((sq, index) => {
+    let cx, cy;
 
-  // 右上寄りの黄金点を中心にして、見た目が自然に収まるよう調整
-  const cx = x0 + rectW * 0.61803398875;
-  const cy = y0 + rectH * 0.38196601125;
-  const maxR = Math.min(rectW, rectH) * 0.95;
+    switch (sq.corner) {
+      case "br":
+        cx = sq.x + sq.s;
+        cy = sq.y + sq.s;
+        break;
+      case "bl":
+        cx = sq.x;
+        cy = sq.y + sq.s;
+        break;
+      case "tl":
+        cx = sq.x;
+        cy = sq.y;
+        break;
+      default: // tr
+        cx = sq.x + sq.s;
+        cy = sq.y;
+        break;
+    }
 
-  gridCtx.beginPath();
+    const sx = cx + Math.cos(sq.start) * sq.s;
+    const sy = cy + Math.sin(sq.start) * sq.s;
 
-  const steps = 420;
-  for (let i = 0; i <= steps; i++) {
-    const t = (i / steps) * thetaMax;
-    const r = maxR * Math.exp(b * t);
-    const a = t + Math.PI * 0.08;
+    if (index === 0) g.moveTo(sx, sy);
+    else g.lineTo(sx, sy);
 
-    const px = cx + Math.cos(a) * r;
-    const py = cy + Math.sin(a) * r;
+    g.arc(cx, cy, sq.s, sq.start, sq.end, false);
+  });
 
-    if (i === 0) gridCtx.moveTo(px, py);
-    else gridCtx.lineTo(px, py);
-  }
-
-  gridCtx.stroke();
+  g.stroke();
+  g.restore();
 }
-function line(x1, y1, x2, y2) {
-  gridCtx.beginPath();
-  gridCtx.moveTo(x1, y1);
-  gridCtx.lineTo(x2, y2);
-  gridCtx.stroke();
+
+function drawLine(g, x1, y1, x2, y2) {
+  g.beginPath();
+  g.moveTo(x1, y1);
+  g.lineTo(x2, y2);
+  g.stroke();
 }
 
 function updateUI() {
@@ -717,58 +757,41 @@ async function saveCurrentFrame() {
   setSaveStatus(`元解像度 ${canvas.width}×${canvas.height} で${formatLabel}を準備しています…`);
 
   try {
-    // 書き出し専用キャンバスを作る。
-    // 元動画は一切変更せず、必要な場合だけバリュー/グリッドを合成。
-    const compositeCanvas = document.createElement("canvas");
-    compositeCanvas.width = canvas.width;
-    compositeCanvas.height = canvas.height;
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
 
-    let compositeCtx;
+    let exportCtx;
 
     if (isP3) {
       if (!p3ExportSupported) {
         throw new Error("このブラウザはDisplay-P3 Canvas書き出しに対応していません。");
       }
 
-      compositeCtx = compositeCanvas.getContext("2d", {
+      exportCtx = exportCanvas.getContext("2d", {
         alpha: false,
         colorSpace: "display-p3"
       });
-
-      if (!compositeCtx) {
-        throw new Error("Display-P3 Canvasを作成できませんでした。");
-      }
     } else {
-      compositeCtx = compositeCanvas.getContext("2d", { alpha: false });
+      exportCtx = exportCanvas.getContext("2d", { alpha: false });
     }
 
-    compositeCtx.fillStyle = "#000";
-    compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-    compositeCtx.drawImage(canvas, 0, 0);
-
-    if (exportOverlays) {
-      // バリューは元映像の上に完全なモノクロ画像として合成
-      if (valueEnabled) {
-        compositeCtx.drawImage(fxCanvas, 0, 0);
-      }
-
-      // グリッドは最後に最前面へ合成
-      if (gridEnabled) {
-        compositeCtx.drawImage(gridCanvas, 0, 0);
-      }
+    if (!exportCtx) {
+      throw new Error("書き出し用Canvasを作成できませんでした。");
     }
 
-    let exportCanvas = compositeCanvas;
+    exportCtx.fillStyle = "#000";
+    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
-    if (isJpeg) {
-      const jpegCanvas = document.createElement("canvas");
-      jpegCanvas.width = compositeCanvas.width;
-      jpegCanvas.height = compositeCanvas.height;
-      const jpegCtx = jpegCanvas.getContext("2d", { alpha: false });
-      jpegCtx.fillStyle = "#000";
-      jpegCtx.fillRect(0, 0, jpegCanvas.width, jpegCanvas.height);
-      jpegCtx.drawImage(compositeCanvas, 0, 0);
-      exportCanvas = jpegCanvas;
+    if (exportOverlays && (valueEnabled || gridEnabled)) {
+      // プレビューと完全に同じ合成関数を使用。
+      composeAnalyzedFrame(exportCtx, {
+        value: valueEnabled,
+        grid: gridEnabled,
+        gridKind: gridType
+      });
+    } else {
+      exportCtx.drawImage(canvas, 0, 0);
     }
 
     const blob = await canvasToBlob(
@@ -782,14 +805,8 @@ async function saveCurrentFrame() {
     if ("showSaveFilePicker" in window) {
       try {
         const pickerTypes = isJpeg
-          ? [{
-              description: "JPEG画像",
-              accept: { "image/jpeg": [".jpg", ".jpeg"] }
-            }]
-          : [{
-              description: isP3 ? "Display-P3 PNG画像" : "PNG画像",
-              accept: { "image/png": [".png"] }
-            }];
+          ? [{ description: "JPEG画像", accept: { "image/jpeg": [".jpg", ".jpeg"] } }]
+          : [{ description: isP3 ? "Display-P3 PNG画像" : "PNG画像", accept: { "image/png": [".png"] } }];
 
         const handle = await window.showSaveFilePicker({
           suggestedName: fileName,
@@ -801,7 +818,9 @@ async function saveCurrentFrame() {
         await writable.close();
 
         setSaveStatus(
-          `指定した保存先に ${canvas.width}×${canvas.height} の${formatLabel}を保存しました。`,
+          `保存完了：${canvas.width}×${canvas.height} ${formatLabel}` +
+          `${exportOverlays && valueEnabled ? " / モノクロ" : ""}` +
+          `${exportOverlays && gridEnabled ? " / グリッド込み" : ""}`,
           "ok"
         );
         return;
@@ -818,15 +837,8 @@ async function saveCurrentFrame() {
 
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
-        await navigator.share({
-          files: [file],
-          title: fileName
-        });
-
-        setSaveStatus(
-          `共有シートへ ${canvas.width}×${canvas.height} の${formatLabel}を渡しました。`,
-          "ok"
-        );
+        await navigator.share({ files: [file], title: fileName });
+        setSaveStatus("共有シートへ画像を渡しました。", "ok");
         return;
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -846,10 +858,7 @@ async function saveCurrentFrame() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
 
-    setSaveStatus(
-      `ブラウザのダウンロード機能で ${canvas.width}×${canvas.height} の${formatLabel}を保存しました。`,
-      "ok"
-    );
+    setSaveStatus("ブラウザのダウンロード機能で保存しました。", "ok");
   } catch (err) {
     console.error(err);
     setSaveStatus(`保存できませんでした: ${err.message || err}`, "error");

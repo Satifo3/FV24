@@ -255,3 +255,24 @@ footer{text-align:center;color:#687286;font-size:11px;padding:14px 0}
   border-radius:10px;
   background:#0d121a;
 }
+
+
+/* v1.6.2: preview composition is rendered on fxCanvas as one final image */
+#canvas{
+  z-index:1;
+}
+#fxCanvas{
+  z-index:3;
+}
+#gridCanvas{
+  display:none !important;
+}
+.viewer.has-analysis #canvas{
+  visibility:hidden;
+}
+.viewer.has-analysis #fxCanvas{
+  visibility:visible;
+}
+.viewer:not(.has-analysis) #fxCanvas{
+  visibility:hidden;
+}
