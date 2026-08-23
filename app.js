@@ -7,6 +7,10 @@ const dropZone = $("dropZone");
 const video = $("video");
 const canvas = $("canvas");
 const ctx = canvas.getContext("2d", { alpha: false });
+const fxCanvas = $("fxCanvas");
+const fxCtx = fxCanvas.getContext("2d");
+const gridCanvas = $("gridCanvas");
+const gridCtx = gridCanvas.getContext("2d");
 const emptyState = $("emptyState");
 const hud = $("hud");
 const frameHud = $("frameHud");
@@ -36,6 +40,9 @@ let gifHeight = 0;
 let exportFormat = "png";
 const JPEG_QUALITY = 0.95;
 let p3ExportSupported = false;
+let gridEnabled = false;
+let valueEnabled = false;
+let gridType = "thirds";
 
 openBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
@@ -85,6 +92,26 @@ $("overlayCheck").addEventListener("change", e => {
   hud.hidden = !e.target.checked || !mode;
 });
 
+$("gridCheck").addEventListener("change", e => {
+  gridEnabled = e.target.checked;
+  $("gridOptions").classList.toggle("disabled", !gridEnabled);
+  renderOverlays();
+});
+
+$("valueCheck").addEventListener("change", e => {
+  valueEnabled = e.target.checked;
+  renderOverlays();
+});
+
+document.querySelectorAll(".grid-type").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".grid-type").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    gridType = btn.dataset.grid || "thirds";
+    renderOverlays();
+  });
+});
+
 timeline.addEventListener("input", () => {
   pausePlayback();
   goToFrame(Number(timeline.value));
@@ -118,6 +145,8 @@ function clearSource() {
   gifTotalDurationMs = 0;
   gifWidth = 0;
   gifHeight = 0;
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = null;
 
@@ -319,10 +348,18 @@ function setupCanvas(w,h) {
   canvas.width = Math.max(1, Math.round(w || 1280));
   canvas.height = Math.max(1, Math.round(h || 720));
   canvas.style.display = "block";
+
+  fxCanvas.width = canvas.width;
+  fxCanvas.height = canvas.height;
+  gridCanvas.width = canvas.width;
+  gridCanvas.height = canvas.height;
+
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#000";
   ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  renderOverlays();
 }
 
 function showLoadedUI() {
@@ -331,6 +368,7 @@ function showLoadedUI() {
   hud.hidden = !$("overlayCheck").checked;
   timeline.max = Math.max(0,totalFrames - 1);
   goToFrame(0);
+  renderOverlays();
 }
 
 function clampFrame(n) {
@@ -378,6 +416,7 @@ function drawVideoFrame() {
   // プレビューはCSSで縮小表示されても、内部画素数は元動画のまま。
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(video, 0, 0);
+  renderOverlays();
 }
 
 function renderGifAtTime(seconds) {
@@ -430,6 +469,160 @@ function renderGifAtTime(seconds) {
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(gifCanvas, 0, 0);
+  renderOverlays();
+}
+
+
+function renderOverlays() {
+  if (!canvas.width || !canvas.height) return;
+
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+  // バリュー確認: 元フレームは触らず、上にモノクロ版を重ねる。
+  if (valueEnabled && mode) {
+    fxCtx.save();
+    fxCtx.filter = "grayscale(1)";
+    fxCtx.drawImage(canvas, 0, 0);
+    fxCtx.restore();
+  }
+
+  if (gridEnabled && mode) {
+    drawSelectedGrid();
+  }
+}
+
+function drawSelectedGrid() {
+  const w = gridCanvas.width;
+  const h = gridCanvas.height;
+  if (!w || !h) return;
+
+  gridCtx.save();
+  gridCtx.clearRect(0, 0, w, h);
+  gridCtx.strokeStyle = "rgba(255, 84, 84, 0.92)";
+  gridCtx.lineWidth = Math.max(2, Math.min(w, h) / 700);
+  gridCtx.lineCap = "round";
+  gridCtx.lineJoin = "round";
+
+  if (gridType === "phi") {
+    drawPhiGrid(w, h);
+  } else if (gridType === "spiral") {
+    drawFibonacciSpiral(w, h);
+  } else {
+    drawThirdsGrid(w, h);
+  }
+
+  gridCtx.restore();
+}
+
+function drawThirdsGrid(w, h) {
+  [1/3, 2/3].forEach(r => {
+    line(r*w, 0, r*w, h);
+    line(0, r*h, w, r*h);
+  });
+}
+
+function drawPhiGrid(w, h) {
+  const a = 0.38196601125;
+  const b = 0.61803398875;
+
+  [a, b].forEach(r => {
+    line(r*w, 0, r*w, h);
+    line(0, r*h, w, r*h);
+  });
+}
+
+function drawFibonacciSpiral(w, h) {
+  // 画面内に収まる黄金長方形を中央配置。
+  const phi = (1 + Math.sqrt(5)) / 2;
+  let rw = w;
+  let rh = rw / phi;
+
+  if (rh > h) {
+    rh = h;
+    rw = rh * phi;
+  }
+
+  const ox = (w - rw) / 2;
+  const oy = (h - rh) / 2;
+
+  // 黄金長方形の主要分割線
+  gridCtx.globalAlpha = 0.58;
+  gridCtx.strokeRect(ox, oy, rw, rh);
+
+  let x = ox, y = oy, ww = rw, hh = rh;
+  const rects = [];
+
+  for (let i = 0; i < 8; i++) {
+    if (ww >= hh) {
+      const s = hh;
+      rects.push({x, y, s, dir:i%4});
+      if (i % 4 === 0 || i % 4 === 3) {
+        line(x + s, y, x + s, y + hh);
+        x += s;
+      } else {
+        line(x + ww - s, y, x + ww - s, y + hh);
+      }
+      ww -= s;
+    } else {
+      const s = ww;
+      rects.push({x, y, s, dir:i%4});
+      if (i % 4 === 1 || i % 4 === 0) {
+        line(x, y + s, x + ww, y + s);
+        y += s;
+      } else {
+        line(x, y + hh - s, x + ww, y + hh - s);
+      }
+      hh -= s;
+    }
+    if (ww <= 1 || hh <= 1) break;
+  }
+
+  // 連続した1/4円弧でスパイラルを描画
+  gridCtx.globalAlpha = 1;
+  let sx = ox, sy = oy, sw = rw, sh = rh;
+  let orientation = 0;
+
+  gridCtx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    let s, cx, cy, start, end;
+
+    if (sw >= sh) {
+      s = sh;
+      if (orientation % 4 === 0) {
+        cx = sx + s; cy = sy + s; start = Math.PI; end = 1.5*Math.PI;
+        sx += s;
+      } else {
+        cx = sx + sw - s; cy = sy; start = 0.5*Math.PI; end = Math.PI;
+      }
+      sw -= s;
+    } else {
+      s = sw;
+      if (orientation % 4 === 1) {
+        cx = sx; cy = sy + s; start = -0.5*Math.PI; end = 0;
+        sy += s;
+      } else {
+        cx = sx + s; cy = sy + sh - s; start = Math.PI; end = 1.5*Math.PI;
+      }
+      sh -= s;
+    }
+
+    if (i === 0) {
+      gridCtx.moveTo(cx + Math.cos(start)*s, cy + Math.sin(start)*s);
+    }
+    gridCtx.arc(cx, cy, s, start, end, false);
+
+    orientation++;
+    if (sw <= 1 || sh <= 1) break;
+  }
+  gridCtx.stroke();
+}
+
+function line(x1, y1, x2, y2) {
+  gridCtx.beginPath();
+  gridCtx.moveTo(x1, y1);
+  gridCtx.lineTo(x2, y2);
+  gridCtx.stroke();
 }
 
 function updateUI() {

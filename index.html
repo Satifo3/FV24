@@ -8,90 +8,149 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
+  <main class="app desktop-app">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
-        <h1>Frame Viewer <span>24</span></h1>
+      <div class="brand-row">
+        <div>
+          <p class="eyebrow">ANIMATION REFERENCE TOOL</p>
+          <h1>Frame Viewer <span>24</span></h1>
+        </div>
+        <span class="version-badge">v1.6</span>
       </div>
-      <button id="openBtn" class="primary">動画 / GIFを開く</button>
-      <input id="fileInput" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v,image/gif,.mp4,.m4v,.webm,.mov,.gif" hidden />
+
+      <div class="top-actions">
+        <button id="openBtn" class="primary">動画 / GIFを開く</button>
+        <input id="fileInput" type="file"
+          accept="video/mp4,video/webm,video/quicktime,video/x-m4v,image/gif,.mp4,.m4v,.webm,.mov,.gif"
+          hidden />
+      </div>
     </header>
 
-    <section class="viewer-card">
-      <div id="dropZone" class="viewer">
-        <video id="video" playsinline preload="metadata" hidden></video>
-        <canvas id="canvas"></canvas>
+    <div class="workspace">
+      <section class="main-column">
+        <section class="viewer-card">
+          <div id="dropZone" class="viewer">
+            <video id="video" playsinline preload="metadata" hidden></video>
 
-        <div id="emptyState" class="empty">
-          <div class="empty-icon">24</div>
-          <h2>動画またはGIFを読み込んでください</h2>
-          <p>MP4 / MOV / M4V / WebM / GIF</p>
-          <small>iPhoneのHEVC(H.265)動画にも対応※</small>
-          <small>※ HEVCは端末・ブラウザ側のデコーダー対応が必要です</small>
-        </div>
+            <div class="canvas-stack">
+              <canvas id="canvas"></canvas>
+              <canvas id="fxCanvas"></canvas>
+              <canvas id="gridCanvas"></canvas>
+            </div>
 
-        <div id="hud" class="hud" hidden>
-          <span id="frameHud">F 000001</span>
-          <span id="timeHud">00:00 + 00</span>
-        </div>
-      </div>
+            <div id="emptyState" class="empty">
+              <div class="empty-icon">24</div>
+              <h2>動画またはGIFを読み込んでください</h2>
+              <p>MP4 / MOV / M4V / WebM / GIF</p>
+              <small>iPhoneのHEVC(H.265)動画にも対応※</small>
+              <small>※ HEVCは端末・ブラウザ側のデコーダー対応が必要です</small>
+            </div>
 
-      <div class="transport">
-        <button id="firstBtn" title="先頭">|◀</button>
-        <button id="prevBtn" class="big" title="1コマ戻る">◀ 1F</button>
-        <button id="playBtn" class="play" title="24fpsで再生">▶</button>
-        <button id="nextBtn" class="big" title="1コマ進む">1F ▶</button>
-        <button id="lastBtn" title="末尾">▶|</button>
-      </div>
-
-      <div class="timeline-wrap">
-        <input id="timeline" type="range" min="0" max="0" value="0" step="1" />
-        <div class="timeline-meta">
-          <strong id="currentFrame">000001 F</strong>
-          <span id="totalFrames">/ 000000 F</span>
-          <span class="spacer"></span>
-          <span id="sourceInfo">24 fps表示</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="controls-grid">
-      <article class="panel">
-        <h3>コマ送り</h3>
-        <div class="segmented">
-          <button data-step="1" class="step active">1F</button>
-          <button data-step="2" class="step">2F</button>
-          <button data-step="3" class="step">3F</button>
-          <button data-step="6" class="step">6F</button>
-        </div>
-        <p>← / → キーでもコマ送りできます。</p>
-      </article>
-
-      <article class="panel">
-        <h3>表示</h3>
-        <label class="check"><input id="fitCheck" type="checkbox" checked /> 画面内にフィット</label>
-        <label class="check"><input id="overlayCheck" type="checkbox" /> 動画上にフレーム情報を表示</label>
-      </article>
-
-      <article class="panel">
-        <h3>書き出し</h3>
-
-        <div class="export-format">
-          <span class="export-label">画像形式</span>
-          <div class="segmented export-segmented" role="group" aria-label="画像保存形式">
-            <button type="button" class="format-btn active" data-format="png">PNG</button>
-            <button type="button" class="format-btn" data-format="jpeg">JPEG</button>
-            <button type="button" class="format-btn" data-format="p3png">HDR / P3</button>
+            <div id="hud" class="hud" hidden>
+              <span id="frameHud">F 000001</span>
+              <span id="timeHud">00:00 + 00</span>
+            </div>
           </div>
-          <div id="hdrCapability" class="hdr-capability">HDR/P3対応を確認中…</div>
-        </div>
 
-        <button id="saveBtn" class="secondary">保存先を選んでPNG保存</button>
-        <p id="saveHelp">元動画/GIFの解像度のまま保存します。HDR/P3は対応ブラウザでDisplay-P3 PNGとして書き出します。</p>
-        <p id="saveStatus" class="save-status" aria-live="polite"></p>
-      </article>
-    </section>
+          <div class="transport">
+            <button id="firstBtn" title="先頭">|◀</button>
+            <button id="prevBtn" class="big" title="1コマ戻る">◀ 1F</button>
+            <button id="playBtn" class="play" title="24fpsで再生">▶</button>
+            <button id="nextBtn" class="big" title="1コマ進む">1F ▶</button>
+            <button id="lastBtn" title="末尾">▶|</button>
+          </div>
+
+          <div class="timeline-wrap">
+            <input id="timeline" type="range" min="0" max="0" value="0" step="1" />
+            <div class="timeline-meta">
+              <strong id="currentFrame">000001 F</strong>
+              <span id="totalFrames">/ 000000 F</span>
+              <span class="spacer"></span>
+              <span id="sourceInfo">24 fps表示</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="side-column">
+        <section class="panel overlay-panel">
+          <h3>表示オーバーレイ</h3>
+
+          <div class="control-group">
+            <label class="check main-check">
+              <input id="gridCheck" type="checkbox" />
+              <span>グリッドを表示</span>
+            </label>
+
+            <div id="gridOptions" class="sub-options disabled">
+              <span class="control-label">グリッドの種類</span>
+              <div class="grid-type-buttons">
+                <button class="grid-type active" data-grid="thirds">
+                  <span class="mini-grid icon-thirds"></span>
+                  <span>3×3グリッド</span>
+                </button>
+                <button class="grid-type" data-grid="phi">
+                  <span class="mini-grid icon-phi"></span>
+                  <span>ファイ・グリッド</span>
+                </button>
+                <button class="grid-type" data-grid="spiral">
+                  <span class="mini-grid icon-spiral">◔</span>
+                  <span>フィボナッチ<br>スパイラル</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="control-group">
+            <label class="check main-check">
+              <input id="valueCheck" type="checkbox" />
+              <span>バリュー（モノクロ）を表示</span>
+            </label>
+            <p class="help-text">色を消して、明暗だけで画面設計を確認します。</p>
+          </div>
+
+          <div class="divider"></div>
+
+          <label class="check">
+            <input id="overlayCheck" type="checkbox" />
+            <span>フレーム情報を動画上に表示</span>
+          </label>
+
+          <p class="note">※ グリッドとバリューはプレビュー専用です。画像書き出しには含めません。</p>
+        </section>
+
+        <section class="panel transport-panel">
+          <h3>コマ送り</h3>
+          <div class="segmented">
+            <button data-step="1" class="step active">1F</button>
+            <button data-step="2" class="step">2F</button>
+            <button data-step="3" class="step">3F</button>
+            <button data-step="6" class="step">6F</button>
+          </div>
+          <p>← / → キーでもコマ送りできます。</p>
+        </section>
+
+        <section class="panel">
+          <h3>画像を書き出し</h3>
+
+          <div class="export-format">
+            <span class="export-label">画像形式</span>
+            <div class="segmented export-segmented" role="group" aria-label="画像保存形式">
+              <button type="button" class="format-btn active" data-format="png">PNG</button>
+              <button type="button" class="format-btn" data-format="jpeg">JPEG</button>
+              <button type="button" class="format-btn" data-format="p3png">HDR / P3</button>
+            </div>
+            <div id="hdrCapability" class="hdr-capability">HDR/P3対応を確認中…</div>
+          </div>
+
+          <button id="saveBtn" class="secondary">保存先を選んでPNG保存</button>
+          <p id="saveHelp">元動画/GIFの解像度のまま保存します。HDR/P3は対応ブラウザでDisplay-P3 PNGとして書き出します。</p>
+          <p id="saveStatus" class="save-status" aria-live="polite"></p>
+        </section>
+      </aside>
+    </div>
 
     <footer>
       <p>Frame Viewer 24 — 1秒 = 24コマ基準</p>
