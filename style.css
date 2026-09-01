@@ -716,3 +716,77 @@ footer{text-align:center;color:#687286;font-size:11px;padding:14px 0}
   opacity:.45;
   pointer-events:none;
 }
+
+
+/* v1.8.3: iPhone safe-area / top header overlap fix
+   Keep all existing Film Labs UI behavior; only reserve iOS status/notch areas. */
+@media (max-width: 900px){
+  .app,
+  .desktop-app{
+    padding-top:calc(10px + env(safe-area-inset-top, 0px));
+    padding-right:calc(10px + env(safe-area-inset-right, 0px));
+    padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left:calc(10px + env(safe-area-inset-left, 0px));
+  }
+
+  .topbar{
+    position:relative;
+    z-index:20;
+    min-height:52px;
+  }
+
+  .top-actions,
+  #openBtn{
+    position:relative;
+    z-index:21;
+  }
+}
+
+@media (max-width: 560px){
+  .topbar{
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) auto;
+    align-items:center;
+    column-gap:8px;
+  }
+
+  .brand-row{
+    min-width:0;
+  }
+
+  .brand-copy{
+    min-width:0;
+  }
+
+  h1{
+    font-size:19px;
+  }
+
+  .brand-icon{
+    width:40px;
+    height:40px;
+  }
+
+  .version-badge{
+    flex:0 0 auto;
+    font-size:9px;
+    padding:4px 6px;
+  }
+
+  .primary{
+    max-width:124px;
+    padding:10px 10px;
+    font-size:11px;
+    white-space:normal;
+  }
+}
+
+/* Landscape iPhone: reserve notch / Dynamic Island side insets as well. */
+@media (max-width: 900px) and (orientation: landscape){
+  .app,
+  .desktop-app{
+    padding-top:calc(8px + env(safe-area-inset-top, 0px));
+    padding-right:calc(12px + env(safe-area-inset-right, 0px));
+    padding-left:calc(12px + env(safe-area-inset-left, 0px));
+  }
+}

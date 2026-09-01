@@ -297,3 +297,10 @@ WASMベースの専用エンコーダーなど追加実装が必要です。
 - Film Labsの新アイコンをヘッダー、favicon、iPhoneホーム画面用アイコンに反映。
 - 機能ロジックはv1.8.1から変更なし。
 - アクセントカラーのみ新アイコンに合わせたティール系へ調整。
+
+
+## v1.8.3 iPhone Safe Area Fix
+- iPhone status bar / Dynamic Island overlap fixed with safe-area-inset-top.
+- Landscape left/right notch safe areas reserved.
+- Mobile header made collision-resistant.
+- Existing media loading, analysis, export, icon, and app logic unchanged.
